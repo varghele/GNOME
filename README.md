@@ -15,7 +15,14 @@ Before you begin, ensure you have the following installed:
 - **RDKit** (for molecular data processing)
 - **torch-scatter** (for data processing)
 
-Either use the provided `environment.yaml` or run the following (you have to adjust for your CUDA version:
+Either use the provided `environment.yml`: 
+
+```bash
+conda env create -f environment.yml
+conda activate GNOME
+```
+
+Or run the following (you have to adjust for your CUDA version:
 
 ```bash
 conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia
