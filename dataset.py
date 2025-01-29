@@ -3,7 +3,9 @@ import torch
 import requests
 import argparse
 from torch_geometric.data import Dataset, Data
-
+from rdkit import Chem
+from utils.dlutils import create_molecule_data
+from tqdm import tqdm
 
 class MoleculeDataset(Dataset):
     def __init__(self, root, transform=None):
@@ -11,7 +13,7 @@ class MoleculeDataset(Dataset):
 
     @property
     def raw_file_names(self):
-        return ['nmrshiftdb2.sd']  # Raw file name (can be modified)
+        return ['nmrshiftdb2withsignals.sd']  # Raw file name (can be modified)
 
     @property
     def processed_file_names(self):
@@ -21,12 +23,16 @@ class MoleculeDataset(Dataset):
         # Ensure the raw data directory exists
         os.makedirs(self.raw_dir, exist_ok=True)
 
-        # Download the nmrshiftdb2.sd file from SourceForge
-        project_name = "nmrshiftdb2"
-        file_name = "nmrshiftdb2.sd"  # Replace with the desired file name
+        # Check if the file already exists
+        file_name = self.raw_file_names[0]
         save_path = os.path.join(self.raw_dir, file_name)
 
-        # Construct the download URL
+        if os.path.exists(save_path):
+            print(f"File already exists: {save_path}. Skipping download.")
+            return
+
+        # Download the nmrshiftdb2.sd file from SourceForge
+        project_name = "nmrshiftdb2"
         url = f"https://sourceforge.net/projects/{project_name}/files/{file_name}/download"
 
         # Send a GET request to download the file
@@ -44,23 +50,20 @@ class MoleculeDataset(Dataset):
 
     def process(self):
         # Process raw data into PyG Data objects
-        # This is a placeholder - implement according to your data format
         raw_data_path = os.path.join(self.raw_dir, self.raw_file_names[0])
 
-        # Load the raw data (assuming it's a list of dictionaries)
-        # You need to implement this based on the actual format of your data
-        raw_data = torch.load(raw_data_path)  # Placeholder for loading raw data
+        # Load the .sd file using RDKit
+        supplier = Chem.SDMolSupplier(raw_data_path)
 
         data_list = []
-        for item in raw_data:
-            data = Data(
-                x=item['node_features'],  # Replace with actual node features
-                edge_index=item['edge_index'],  # Replace with actual edge indices
-                edge_attr=item['edge_features'],  # Replace with actual edge features
-                u=item['global_features'],  # Replace with actual global features
-                shifts=item['shifts']  # Replace with actual NMR shifts
-            )
-            data_list.append(data)
+        for mol in tqdm(supplier, desc="Processing molecules", unit="mol"):
+            if mol is None:
+                continue
+
+            # Create molecule data using the create_molecule_data function
+            data = create_molecule_data(mol)
+            if data is not None:
+                data_list.append(data)
 
         # Save the processed data
         torch.save(data_list, os.path.join(self.processed_dir, self.processed_file_names[0]))
