@@ -39,14 +39,14 @@ cd GNOME
 ### Step 2: Download the Raw Data
 To download the raw NMR dataset, run the following command:
 ```bash
-python datasets.py --data_dir data --download
+python dataset.py --data_dir data --download
 ```
 This will download the `nmrshiftdb2withsignals.sd` file from SourceForge and save it in the `data/raw` directory.
 
 ### Step 3: Process the Data
 Once the raw data is downloaded, you can process it into PyTorch Geometric format by running:
 ```bash
-python datasets.py --data_dir data --process
+python dataset.py --data_dir data --process
 ```
 
 This step takes roughly **5 minutes** and will:
@@ -62,7 +62,7 @@ This step takes roughly **5 minutes** and will:
 ### Step 4: Verify the Dataset
 To verify that the dataset was processed correctly, you can check the number of molecules and inspect the first molecule:
 ```bash
-python datasets.py --data_dir data
+python dataset.py --data_dir data
 ```
 This will print:
 
