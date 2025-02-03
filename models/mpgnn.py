@@ -5,40 +5,40 @@ from typing import Optional, Union, Callable, Literal, List
 
 
 class EdgeModel(torch.nn.Module):
-    def __init__(self, node_dim, edge_dim, global_dim, hidden_dim, act, norm, dropout):
+    def __init__(self, node_dim, edge_dim, hidden_dim, act, norm, dropout):
         super().__init__()
         self.edge_mlp = MLP(
-            in_channels=2 * node_dim + edge_dim + global_dim,
+            in_channels=2 * node_dim + edge_dim, # no global_dim
             hidden_channels=hidden_dim,
             out_channels=edge_dim,
-            num_layers=3,
+            num_layers=3, #TODO add as arg
             act=act,
             norm=norm,
             dropout=dropout
         )
 
     def forward(self, src, dest, edge_attr, u, batch):
-        out = torch.cat([src, dest, edge_attr, u[batch]], dim=1)
+        out = torch.cat([src, dest, edge_attr], dim=1)
         return self.edge_mlp(out)
 
 
 class NodeModel(torch.nn.Module):
-    def __init__(self, node_dim, edge_dim, global_dim, hidden_dim, act, norm, dropout):
+    def __init__(self, node_dim, edge_dim, hidden_dim, act, norm, dropout):
         super().__init__()
         self.node_mlp_1 = MLP(
-            in_channels=node_dim + edge_dim,
+            in_channels=node_dim + edge_dim,  # No global_dim
             hidden_channels=hidden_dim,
             out_channels=hidden_dim,
-            num_layers=2,
+            num_layers=2, #TODO add as arg
             act=act,
             norm=norm,
             dropout=dropout
         )
         self.node_mlp_2 = MLP(
-            in_channels=node_dim + hidden_dim + global_dim,
+            in_channels=node_dim + hidden_dim,  # No global_dim
             hidden_channels=hidden_dim,
             out_channels=node_dim,
-            num_layers=2,
+            num_layers=2, #TODO add as arg
             act=act,
             norm=norm,
             dropout=dropout
@@ -49,7 +49,7 @@ class NodeModel(torch.nn.Module):
         out = torch.cat([x[row], edge_attr], dim=1)
         out = self.node_mlp_1(out)
         out = scatter_mean(out, col, dim=0, dim_size=x.size(0))
-        out = torch.cat([x, out, u[batch]], dim=1)
+        out = torch.cat([x, out], dim=1)  # Removed u[batch]
         return self.node_mlp_2(out)
 
 
@@ -57,10 +57,10 @@ class GlobalModel(torch.nn.Module):
     def __init__(self, node_dim, edge_dim, global_dim, hidden_dim, act, norm, dropout):
         super().__init__()
         self.global_mlp = MLP(
-            in_channels=node_dim + edge_dim + global_dim,
+            in_channels=node_dim + edge_dim,  # No global_dim
             hidden_channels=hidden_dim,
             out_channels=global_dim,
-            num_layers=3,
+            num_layers=3, #TODO add as arg
             act=act,
             norm=norm,
             dropout=dropout
@@ -69,8 +69,7 @@ class GlobalModel(torch.nn.Module):
     def forward(self, x, edge_index, edge_attr, u, batch):
         out = torch.cat([
             scatter_mean(x, batch, dim=0),
-            scatter_mean(edge_attr, batch[edge_index[0]], dim=0),
-            u
+            scatter_mean(edge_attr, batch[edge_index[0]], dim=0)
         ], dim=1)
         return self.global_mlp(out)
 
@@ -94,11 +93,33 @@ class MPGNN(torch.nn.Module):
         self.num_layers = num_layers
         self.embedding_type = embedding_type
 
+        # Node encoder: Transforms raw node features into embeddings of size node_dim
+        self.node_encoder = MLP(
+            in_channels=7,  # Assuming raw node features have size node_dim TODO: make dynamic
+            hidden_channels=hidden_dim,
+            out_channels=node_dim,
+            num_layers=2, #TODO add as arg
+            act=act,
+            norm=norm,
+            dropout=dropout
+        )
+
+        # Edge encoder: Transforms raw edge features into embeddings of size edge_dim
+        self.edge_encoder = MLP(
+            in_channels=4,  # Assuming raw edge features have size edge_dim TODO: make dynamic
+            hidden_channels=hidden_dim,
+            out_channels=edge_dim,
+            num_layers=2, #TODO add as arg
+            act=act,
+            norm=norm,
+            dropout=dropout
+        )
+
         # Message passing layers
         self.layers = torch.nn.ModuleList([
             MetaLayer(
-                edge_model=EdgeModel(node_dim, edge_dim, global_dim, hidden_dim, act, norm, dropout),
-                node_model=NodeModel(node_dim, edge_dim, global_dim, hidden_dim, act, norm, dropout),
+                edge_model=EdgeModel(node_dim, edge_dim, hidden_dim, act, norm, dropout),
+                node_model=NodeModel(node_dim, edge_dim, hidden_dim, act, norm, dropout),
                 global_model=GlobalModel(node_dim, edge_dim, global_dim, hidden_dim, act, norm, dropout)
             ) for _ in range(num_layers)
         ])
@@ -125,9 +146,16 @@ class MPGNN(torch.nn.Module):
             dropout=dropout
         )
 
-    def forward(self, x, edge_index, edge_attr, u, batch=None):
+    def forward(self, x, edge_index, edge_attr, batch=None):
         if batch is None:
             batch = torch.zeros(x.size(0), dtype=torch.long, device=x.device)
+
+        # Encode node and edge features
+        x = self.node_encoder(x)  # Encode node features
+        edge_attr = self.edge_encoder(edge_attr)  # Encode edge features
+
+        # Initialize random global attribute u with the same size as node_dim
+        u = torch.randn(batch.max() + 1, x.size(1), device=x.device)  # Random u with size (num_graphs, node_dim)
 
         # Message passing
         for layer in self.layers:
@@ -171,11 +199,10 @@ if __name__ == "__main__":
     x = torch.randn(num_nodes, 32)
     edge_index = torch.randint(0, num_nodes, (2, num_edges))
     edge_attr = torch.randn(num_edges, 16)
-    u = torch.randn(2, 8)  # 2 graphs
     batch = torch.zeros(num_nodes, dtype=torch.long)
     batch[5:] = 1  # Second half of nodes belong to second graph
 
     # Forward pass
-    shifts, (node_embeddings, edge_embeddings, global_embeddings) = model(x, edge_index, edge_attr, u, batch)
+    shifts, (node_embeddings, edge_embeddings, global_embeddings) = model(x, edge_index, edge_attr, batch)
 
     print(f"Predicted shifts shape: {shifts.shape}")  # [num_nodes, 1]

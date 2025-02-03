@@ -29,6 +29,8 @@ conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvi
 conda install pyg -c pyg
 pip install torch-scatter
 conda install conda-forge::rdkit
+conda install conda-forge::tensorboard
+conda install anaconda::h5py 
 ```
 ### Step 1: Clone the Repository
 First, clone the repository to your local machine:

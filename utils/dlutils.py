@@ -168,6 +168,10 @@ def create_molecule_data(mol):
         edge_index = torch.tensor(edge_indices, dtype=torch.long).t().contiguous()  # Edge connectivity matrix
         edge_attr = torch.stack(edge_attrs)  # Edge feature matrix
 
+    # Create the target tensor (y) from the NMR shifts
+    # Here, we assume that the NMR shift for each atom is the target
+    y = torch.tensor([nmr_shifts.get(atom.GetIdx(), 0.0) for atom in mol.GetAtoms()], dtype=torch.float)
+
     # Create PyTorch Geometric Data object
-    data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
+    data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr, y=y)
     return data

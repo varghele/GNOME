@@ -9,7 +9,7 @@ def model_params():
     return {
         'node_dim': 32,
         'edge_dim': 16,
-        'global_dim': 8,
+        'global_dim': 32,  # Set global_dim to match node_dim
         'hidden_dim': 64,
         'num_layers': 3,
         'shift_predictor_hidden_dim': [128, 64, 32],
@@ -19,6 +19,7 @@ def model_params():
         'norm': "batch_norm",
         'dropout': 0.1
     }
+
 
 
 @pytest.fixture
@@ -31,17 +32,15 @@ def sample_data():
     x1 = torch.randn(num_nodes[0], 32)
     edge_index1 = torch.randint(0, num_nodes[0], (2, num_edges[0]))
     edge_attr1 = torch.randn(num_edges[0], 16)
-    u1 = torch.randn(1, 8)
 
     # Second graph
     x2 = torch.randn(num_nodes[1], 32)
     edge_index2 = torch.randint(0, num_nodes[1], (2, num_edges[1]))
     edge_attr2 = torch.randn(num_edges[1], 16)
-    u2 = torch.randn(1, 8)
 
-    # Create PyG Data objects
-    data1 = Data(x=x1, edge_index=edge_index1, edge_attr=edge_attr1, u=u1)
-    data2 = Data(x=x2, edge_index=edge_index2, edge_attr=edge_attr2, u=u2)
+    # Create PyG Data objects (no need to pass u anymore)
+    data1 = Data(x=x1, edge_index=edge_index1, edge_attr=edge_attr1)
+    data2 = Data(x=x2, edge_index=edge_index2, edge_attr=edge_attr2)
 
     return Batch.from_data_list([data1, data2])
 
@@ -59,16 +58,16 @@ def test_model_forward(model_params, sample_data):
     x = sample_data.x
     edge_index = sample_data.edge_index
     edge_attr = sample_data.edge_attr
-    u = torch.cat([g.u for g in sample_data.to_data_list()], dim=0)
     batch = sample_data.batch
 
-    shifts, (node_emb, edge_emb, global_emb) = model(x, edge_index, edge_attr, u, batch)
+    shifts, (node_emb, edge_emb, global_emb) = model(x, edge_index, edge_attr, batch)
 
     # Test output shapes
     assert shifts.shape == (8, 1)  # Total nodes: 5 + 3 = 8
     assert node_emb.shape == (8, model_params['node_dim'])
     assert edge_emb.shape == (12, model_params['edge_dim'])  # Total edges: 8 + 4 = 12
-    assert global_emb.shape == (2, model_params['global_dim'])  # Number of graphs: 2
+    assert global_emb.shape == (2, model_params['node_dim'])  # Global embeddings now have size (num_graphs, node_dim)
+
 
 
 @pytest.mark.parametrize("embedding_type", ["node", "global", "combined"])
@@ -79,10 +78,9 @@ def test_different_embedding_types(model_params, sample_data, embedding_type):
     x = sample_data.x
     edge_index = sample_data.edge_index
     edge_attr = sample_data.edge_attr
-    u = torch.cat([g.u for g in sample_data.to_data_list()], dim=0)
     batch = sample_data.batch
 
-    shifts, _ = model(x, edge_index, edge_attr, u, batch)
+    shifts, _ = model(x, edge_index, edge_attr, batch)
     assert shifts.shape == (8, 1)  # Should work for all embedding types
 
 
@@ -100,12 +98,11 @@ def test_shift_predictor_architectures(model_params, sample_data):
     x = sample_data.x
     edge_index = sample_data.edge_index
     edge_attr = sample_data.edge_attr
-    u = torch.cat([g.u for g in sample_data.to_data_list()], dim=0)
     batch = sample_data.batch
 
     # Both models should work
-    shifts1, _ = model1(x, edge_index, edge_attr, u, batch)
-    shifts2, _ = model2(x, edge_index, edge_attr, u, batch)
+    shifts1, _ = model1(x, edge_index, edge_attr, batch)
+    shifts2, _ = model2(x, edge_index, edge_attr, batch)
 
     assert shifts1.shape == (8, 1)
     assert shifts2.shape == (8, 1)
@@ -117,11 +114,10 @@ def test_gradient_flow(model_params, sample_data):
     x = sample_data.x
     edge_index = sample_data.edge_index
     edge_attr = sample_data.edge_attr
-    u = torch.cat([g.u for g in sample_data.to_data_list()], dim=0)
     batch = sample_data.batch
 
     # Forward pass
-    shifts, (node_emb, edge_emb, global_emb) = model(x, edge_index, edge_attr, u, batch)
+    shifts, (node_emb, edge_emb, global_emb) = model(x, edge_index, edge_attr, batch)
 
     # Create dummy targets
     shift_target = torch.randn_like(shifts)
@@ -151,11 +147,10 @@ def test_batch_none_handling(model_params):
     x = torch.randn(num_nodes, model_params['node_dim'])
     edge_index = torch.randint(0, num_nodes, (2, num_edges))
     edge_attr = torch.randn(num_edges, model_params['edge_dim'])
-    u = torch.randn(1, model_params['global_dim'])
 
     # Should work without providing batch
     with torch.no_grad():  # Disable gradient computation for inference
-        shifts, _ = model(x, edge_index, edge_attr, u)
+        shifts, _ = model(x, edge_index, edge_attr)
 
     assert shifts.shape == (num_nodes, 1)
 
@@ -172,10 +167,9 @@ def test_batch_none_handling_layer_norm(model_params):
     x = torch.randn(num_nodes, model_params['node_dim'])
     edge_index = torch.randint(0, num_nodes, (2, num_edges))
     edge_attr = torch.randn(num_edges, model_params['edge_dim'])
-    u = torch.randn(1, model_params['global_dim'])
 
     # Should work without providing batch
-    shifts, _ = model(x, edge_index, edge_attr, u)
+    shifts, _ = model(x, edge_index, edge_attr)
 
     assert shifts.shape == (num_nodes, 1)
 

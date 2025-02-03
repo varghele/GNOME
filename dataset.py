@@ -6,10 +6,17 @@ from torch_geometric.data import Dataset, Data
 from rdkit import Chem
 from utils.dlutils import create_molecule_data
 from tqdm import tqdm
+import h5py  # For HDF5 storage
+
+import warnings
+
+# Suppress FutureWarning messages
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 class MoleculeDataset(Dataset):
-    def __init__(self, root, transform=None):
+    def __init__(self, root, split='full', transform=None):
         super().__init__(root, transform)
+        self.split = split  # 'full', 'train', 'val', 'test'
 
     @property
     def raw_file_names(self):
@@ -17,7 +24,7 @@ class MoleculeDataset(Dataset):
 
     @property
     def processed_file_names(self):
-        return ['processed_data.pt']  # Processed file name
+        return ['processed_data.h5']  # Processed file name in HDF5 format
 
     def download(self):
         # Ensure the raw data directory exists
@@ -55,27 +62,126 @@ class MoleculeDataset(Dataset):
         # Load the .sd file using RDKit
         supplier = Chem.SDMolSupplier(raw_data_path)
 
-        data_list = []
-        for mol in tqdm(supplier, desc="Processing molecules", unit="mol"):
-            if mol is None:
-                continue
+        # Create an HDF5 file to store the processed data
+        h5_file_path = os.path.join(self.processed_dir, self.processed_file_names[0])
+        with h5py.File(h5_file_path, 'w') as h5_file:
+            # Counter for valid molecules
+            valid_molecule_count = 0
 
-            # Create molecule data using the create_molecule_data function
-            data = create_molecule_data(mol)
-            if data is not None:
-                data_list.append(data)
+            for idx, mol in enumerate(tqdm(supplier, desc="Processing molecules", unit="mol")):
+                # Skip invalid molecules
+                if mol is None:
+                    print(f"Skipping molecule at index {idx} because it is invalid.")
+                    continue
 
-        # Save the processed data
-        torch.save(data_list, os.path.join(self.processed_dir, self.processed_file_names[0]))
-        print(f"Processed data saved to: {os.path.join(self.processed_dir, self.processed_file_names[0])}")
+                # Skip molecules with no atoms or bonds
+                if mol.GetNumAtoms() == 0 or mol.GetNumBonds() == 0:
+                    print(f"Skipping molecule at index {idx} because it has no atoms or bonds.")
+                    continue
+
+                # Sanitize the molecule
+                try:
+                    Chem.SanitizeMol(mol)
+                except Exception as e:
+                    print(f"Skipping molecule at index {idx} because it failed sanitization: {e}")
+                    continue
+
+                # Create molecule data using the create_molecule_data function
+                data = create_molecule_data(mol)
+                if data is None:
+                    print(f"Skipping molecule at index {idx} because create_molecule_data returned None.")
+                    continue
+
+                # Save each molecule as a group in the HDF5 file
+                group = h5_file.create_group(f'molecule_{valid_molecule_count}')
+                group.create_dataset('x', data=data.x.numpy())
+                group.create_dataset('edge_index', data=data.edge_index.numpy())
+                group.create_dataset('edge_attr', data=data.edge_attr.numpy())
+                group.create_dataset('y', data=data.y.numpy())
+
+                # Increment the valid molecule counter
+                valid_molecule_count += 1
+
+        print(f"Processed data saved to: {h5_file_path}")
 
     def len(self):
-        return len(torch.load(os.path.join(self.processed_dir, self.processed_file_names[0])))
+        # Get the number of molecules in the HDF5 file
+        with h5py.File(os.path.join(self.processed_dir, self.processed_file_names[0]), 'r') as h5_file:
+            return len(h5_file.keys())
 
     def get(self, idx):
-        data_list = torch.load(os.path.join(self.processed_dir, self.processed_file_names[0]))
-        return data_list[idx]
+        # Load a molecule from the HDF5 file
+        with h5py.File(os.path.join(self.processed_dir, self.processed_file_names[0]), 'r') as h5_file:
+            # Takes care of corrupted/missing files
+            if f'molecule_{idx}' not in h5_file:
+                return None
+            group = h5_file[f'molecule_{idx}']
 
+            # Debug: Print the keys and attributes of the group
+            # print(f"Group 'molecule_{idx}' contains the following keys: {list(group.keys())}")
+            # print(f"Attributes of group 'molecule_{idx}': {dict(group.attrs)}")
+
+            # Load the datasets
+            x = torch.tensor(group['x'][:])
+            edge_index = torch.tensor(group['edge_index'][:])
+            edge_attr = torch.tensor(group['edge_attr'][:])
+
+            # Check if 'y' exists in the group
+            if 'y' in group:
+                y = torch.tensor(group['y'][:])
+            else:
+                # If 'y' is missing, assign a placeholder (e.g., zeros)
+                y = torch.zeros(1)  # Placeholder
+                print(f"Warning: 'y' is missing in group 'molecule_{idx}'. Using placeholder.")
+
+            # Create a PyG Data object
+            return Data(x=x, edge_index=edge_index, edge_attr=edge_attr, y=y)
+
+
+def get_dataset(data_dir, split='full', debug_fraction=0.05):
+    """
+    Loads the dataset and returns the appropriate split for cross-validation.
+
+    Args:
+        data_dir (str): Root directory where the dataset is stored.
+        split (str): The split to return ('full', 'train', 'val', 'test', 'debug').
+        debug_fraction (float): Fraction of the dataset to load for the 'debug' split (default: 0.1).
+
+    Returns:
+        Dataset: The dataset split.
+    """
+    # Load the full dataset (already filtered for None values)
+    full_dataset = MoleculeDataset(root=data_dir, split='full')
+
+    if split == 'full':
+        return full_dataset
+
+    # Define train/val/test splits (e.g., 80/10/10)
+    num_samples = len(full_dataset)
+    train_size = int(0.8 * num_samples)
+    val_size = int(0.1 * num_samples)
+    test_size = num_samples - train_size - val_size
+
+    # Split the dataset
+    indices = torch.randperm(num_samples).tolist()
+    train_indices = indices[:train_size]
+    val_indices = indices[train_size:train_size + val_size]
+    test_indices = indices[train_size + val_size:]
+
+    # Return the appropriate split
+    if split == 'train':
+        return torch.utils.data.Subset(full_dataset, train_indices)
+    elif split == 'val':
+        return torch.utils.data.Subset(full_dataset, val_indices)
+    elif split == 'test':
+        return torch.utils.data.Subset(full_dataset, test_indices)
+    elif split == 'debug':
+        # Load a small fraction of the dataset for debugging
+        debug_size = int(debug_fraction * num_samples)
+        debug_indices = indices[:debug_size]
+        return torch.utils.data.Subset(full_dataset, debug_indices)
+    else:
+        raise ValueError(f"Invalid split: {split}. Must be 'full', 'train', 'val', 'test', or 'debug'.")
 
 def main():
     # Set up command-line argument parsing

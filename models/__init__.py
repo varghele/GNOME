@@ -1,6 +1,6 @@
 # models/__init__.py
 from .mpgnn import MPGNN
-#from .schnet import SchNet  # You'll need to implement this
+from .schnet import SchNetInteraction  # You'll need to implement this
 
 def get_model(model_type, args):
     if model_type == 'MPGNN':
@@ -18,7 +18,7 @@ def get_model(model_type, args):
             dropout=args.dropout
         )
     elif model_type == 'SCHNET':
-        return SchNet(
+        return SchNetInteraction(
             # Add SchNet-specific parameters here
         )
     else:
