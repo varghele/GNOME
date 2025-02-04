@@ -12,7 +12,7 @@ def get_args():
 
     # Model selection and architecture
     parser.add_argument('--model_type', type=str, required=False,
-                        choices=['MPGNN', 'SCHNET'], default='MPGNN',
+                        choices=['MPGNN', 'SCHNET', 'GAT'], default='GAT',
                         help='Type of model to use')
     parser.add_argument('--node_dim', type=int, default=32,
                         help='Encoding Dimension of node features')
@@ -35,6 +35,10 @@ def get_args():
                         help='Number of node MLP layers for MPGNN message passing')
     parser.add_argument('--num_global_mlp_layers', type=int, default=2,
                         help='Number of global MLP layers for MPGNN message passing')
+
+    # GAT Architecture arguments
+    parser.add_argument('--heads', type=int, default=2,
+                        help='Number attention heads for the GAT model')
 
 
     # Shift predictor architecture

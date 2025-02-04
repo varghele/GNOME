@@ -12,6 +12,8 @@ class GAT(nn.Module):
             global_dim: int,
             hidden_dim: int,
             num_layers: int,
+            num_encoder_layers: int,
+            num_global_mlp_layers: int,
             heads: int = 4,
             dropout: float = 0.1,
             shift_predictor_hidden_dim: Union[int, List[int]] = 64,
@@ -26,8 +28,21 @@ class GAT(nn.Module):
         # Ensure hidden_dim is divisible by heads
         assert hidden_dim % heads == 0, "hidden_dim must be divisible by heads"
 
-        # Initial node embedding
-        self.node_embedding = nn.Linear(node_dim, hidden_dim)
+        # Store necessary attributes
+        self.node_dim = node_dim
+        self.edge_dim = edge_dim
+        self.global_dim = global_dim
+        self.hidden_dim = hidden_dim
+        self.num_layers = num_layers
+        self.num_encoder_layers = num_encoder_layers
+        self.heads = heads
+        self.dropout = dropout
+        self.act = act
+        self.norm = norm
+
+        # Initialize node and edge encoders as None (will be initialized in forward)
+        self.node_encoder = None
+        self.edge_encoder = None
 
         # GAT layers
         self.gat_layers = nn.ModuleList()
@@ -65,7 +80,7 @@ class GAT(nn.Module):
             in_channels=global_dim,
             hidden_channels=hidden_dim,
             out_channels=hidden_dim,
-            num_layers=2,
+            num_layers=num_global_mlp_layers,
             dropout=dropout,
             act=act,
             norm=norm
@@ -96,12 +111,42 @@ class GAT(nn.Module):
             norm=norm
         )
 
-    def forward(self, x, edge_index, edge_attr, u, batch=None):
+    def forward(self, x, edge_index, edge_attr, batch=None):
         if batch is None:
             batch = torch.zeros(x.size(0), dtype=torch.long, device=x.device)
 
-        # Initial node embedding
-        x = self.node_embedding(x)
+        # Initialize node encoder if not already initialized
+        if self.node_encoder is None:
+            node_in_channels = x.size(1)  # Infer input dimension from node features
+            self.node_encoder = MLP(
+                in_channels=node_in_channels,
+                hidden_channels=self.hidden_dim,
+                out_channels=self.hidden_dim,
+                num_layers=self.num_encoder_layers,
+                act=self.act,
+                norm=self.norm,
+                dropout=self.dropout
+            ).to(x.device)  # Move node_encoder to the same device as x
+
+        # Initialize edge encoder if not already initialized
+        if self.edge_encoder is None:
+            edge_in_channels = edge_attr.size(1)  # Infer input dimension from edge features
+            self.edge_encoder = MLP(
+                in_channels=edge_in_channels,
+                hidden_channels=self.hidden_dim,
+                out_channels=self.edge_dim,
+                num_layers=self.num_encoder_layers,
+                act=self.act,
+                norm=self.norm,
+                dropout=self.dropout
+            ).to(x.device)  # Move edge_encoder to the same device as x
+
+        # Encode node and edge features
+        x = self.node_encoder(x)  # Encode node features
+        edge_attr = self.edge_encoder(edge_attr)  # Encode edge features
+
+        # Initialize random global attribute u with the same size as hidden_dim
+        u = torch.randn(batch.max() + 1, self.global_dim, device=x.device)  # Random u with size (num_graphs, global_dim)
 
         # Process global features
         u_processed = self.global_mlp(u)
@@ -132,6 +177,8 @@ if __name__ == "__main__":
         global_dim=8,
         hidden_dim=64,
         num_layers=3,
+        num_encoder_layers=2,
+        num_global_mlp_layers=1,
         heads=4,
         dropout=0.1,
         shift_predictor_hidden_dim=64,  # Single integer for hidden dimension
@@ -154,23 +201,19 @@ if __name__ == "__main__":
     # Edge features (num_edges x edge_dim)
     edge_attr = torch.randn(num_edges, 16)
 
-    # Global features (num_graphs x global_dim)
-    u = torch.randn(2, 8)  # 2 graphs
-
     # Batch assignment (num_nodes)
     batch = torch.zeros(num_nodes, dtype=torch.long)
     batch[5:] = 1  # Second half of nodes belong to second graph
 
     # Forward pass
     with torch.no_grad():
-        shifts, (node_embeddings, edge_embeddings, global_embeddings) = model(x, edge_index, edge_attr, u, batch)
+        shifts, (node_embeddings, edge_embeddings, global_embeddings) = model(x, edge_index, edge_attr, batch)
 
     # Print shapes
     print("\nInput shapes:")
     print(f"x: {x.shape}")
     print(f"edge_index: {edge_index.shape}")
     print(f"edge_attr: {edge_attr.shape}")
-    print(f"u: {u.shape}")
     print(f"batch: {batch.shape}")
 
     print("\nOutput shapes:")
