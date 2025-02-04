@@ -176,7 +176,8 @@ class SchNet(nn.Module):
 
         # Compute edge lengths
         row, col = edge_index
-        edge_length = torch.norm(edge_attr, dim=1)
+        #edge_length = torch.norm(edge_attr, dim=1)
+        edge_length = edge_attr[:,-1] # Updated (edge length is last param)
 
         # Expand distances
         edge_attr = self.distance_expansion(edge_length)
