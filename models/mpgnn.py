@@ -5,13 +5,13 @@ from typing import Optional, Union, Callable, Literal, List
 
 
 class EdgeModel(torch.nn.Module):
-    def __init__(self, node_dim, edge_dim, hidden_dim, act, norm, dropout):
+    def __init__(self, node_dim, edge_dim, hidden_dim, num_edge_mlp_layers, act, norm, dropout):
         super().__init__()
         self.edge_mlp = MLP(
             in_channels=2 * node_dim + edge_dim, # no global_dim
             hidden_channels=hidden_dim,
             out_channels=edge_dim,
-            num_layers=3, #TODO add as arg
+            num_layers=num_edge_mlp_layers,
             act=act,
             norm=norm,
             dropout=dropout
@@ -23,13 +23,13 @@ class EdgeModel(torch.nn.Module):
 
 
 class NodeModel(torch.nn.Module):
-    def __init__(self, node_dim, edge_dim, hidden_dim, act, norm, dropout):
+    def __init__(self, node_dim, edge_dim, hidden_dim, num_node_mlp_layers, act, norm, dropout):
         super().__init__()
         self.node_mlp_1 = MLP(
             in_channels=node_dim + edge_dim,  # No global_dim
             hidden_channels=hidden_dim,
             out_channels=hidden_dim,
-            num_layers=2, #TODO add as arg
+            num_layers=num_node_mlp_layers,
             act=act,
             norm=norm,
             dropout=dropout
@@ -38,7 +38,7 @@ class NodeModel(torch.nn.Module):
             in_channels=node_dim + hidden_dim,  # No global_dim
             hidden_channels=hidden_dim,
             out_channels=node_dim,
-            num_layers=2, #TODO add as arg
+            num_layers=num_node_mlp_layers,
             act=act,
             norm=norm,
             dropout=dropout
@@ -54,13 +54,13 @@ class NodeModel(torch.nn.Module):
 
 
 class GlobalModel(torch.nn.Module):
-    def __init__(self, node_dim, edge_dim, global_dim, hidden_dim, act, norm, dropout):
+    def __init__(self, node_dim, edge_dim, global_dim, hidden_dim, num_global_mlp_layers, act, norm, dropout):
         super().__init__()
         self.global_mlp = MLP(
             in_channels=node_dim + edge_dim,  # No global_dim
             hidden_channels=hidden_dim,
             out_channels=global_dim,
-            num_layers=3, #TODO add as arg
+            num_layers=num_global_mlp_layers,
             act=act,
             norm=norm,
             dropout=dropout
@@ -82,45 +82,44 @@ class MPGNN(torch.nn.Module):
             global_dim: int,
             hidden_dim: int,
             num_layers: int,
+            num_encoder_layers: int,
+            num_edge_mlp_layers: int,
+            num_node_mlp_layers: int,
+            num_global_mlp_layers: int,
             shift_predictor_hidden_dim: Union[int, List[int]],
             shift_predictor_layers: int,
             embedding_type: Literal["node", "global", "combined"],
             act: Union[str, Callable] = "relu",
             norm: Optional[str] = "batch_norm",
-            dropout: float = 0.0
+            dropout: float = 0.0,
     ):
         super().__init__()
         self.num_layers = num_layers
         self.embedding_type = embedding_type
 
-        # Node encoder: Transforms raw node features into embeddings of size node_dim
-        self.node_encoder = MLP(
-            in_channels=7,  # Assuming raw node features have size node_dim TODO: make dynamic
-            hidden_channels=hidden_dim,
-            out_channels=node_dim,
-            num_layers=2, #TODO add as arg
-            act=act,
-            norm=norm,
-            dropout=dropout
-        )
+        # Store all necessary attributes
+        self.node_dim = node_dim
+        self.edge_dim = edge_dim
+        self.global_dim = global_dim
+        self.hidden_dim = hidden_dim
+        self.num_encoder_layers = num_encoder_layers
+        self.num_edge_mlp_layers = num_edge_mlp_layers
+        self.num_node_mlp_layers = num_node_mlp_layers
+        self.num_global_mlp_layers = num_global_mlp_layers
+        self.act = act
+        self.norm = norm
+        self.dropout = dropout
 
-        # Edge encoder: Transforms raw edge features into embeddings of size edge_dim
-        self.edge_encoder = MLP(
-            in_channels=4,  # Assuming raw edge features have size edge_dim TODO: make dynamic
-            hidden_channels=hidden_dim,
-            out_channels=edge_dim,
-            num_layers=2, #TODO add as arg
-            act=act,
-            norm=norm,
-            dropout=dropout
-        )
+        # Initialize node and edge encoders as None (will be initialized in forward)
+        self.node_encoder = None
+        self.edge_encoder = None
 
         # Message passing layers
         self.layers = torch.nn.ModuleList([
             MetaLayer(
-                edge_model=EdgeModel(node_dim, edge_dim, hidden_dim, act, norm, dropout),
-                node_model=NodeModel(node_dim, edge_dim, hidden_dim, act, norm, dropout),
-                global_model=GlobalModel(node_dim, edge_dim, global_dim, hidden_dim, act, norm, dropout)
+                edge_model=EdgeModel(node_dim, edge_dim, hidden_dim, num_edge_mlp_layers, act, norm, dropout),
+                node_model=NodeModel(node_dim, edge_dim, hidden_dim, num_node_mlp_layers, act, norm, dropout),
+                global_model=GlobalModel(node_dim, edge_dim, global_dim, hidden_dim, num_global_mlp_layers, act, norm, dropout)
             ) for _ in range(num_layers)
         ])
 
@@ -149,6 +148,32 @@ class MPGNN(torch.nn.Module):
     def forward(self, x, edge_index, edge_attr, batch=None):
         if batch is None:
             batch = torch.zeros(x.size(0), dtype=torch.long, device=x.device)
+
+        # Initialize node encoder if not already initialized
+        if self.node_encoder is None:
+            node_in_channels = x.size(1)  # Infer input dimension from node features
+            self.node_encoder = MLP(
+                in_channels=node_in_channels,
+                hidden_channels=self.hidden_dim,
+                out_channels=self.node_dim,
+                num_layers=self.num_encoder_layers,
+                act=self.act,
+                norm=self.norm,
+                dropout=self.dropout
+            ).to(x.device)  # Move node_encoder to the same device as x
+
+        # Initialize edge encoder if not already initialized
+        if self.edge_encoder is None:
+            edge_in_channels = edge_attr.size(1)  # Infer input dimension from edge features
+            self.edge_encoder = MLP(
+                in_channels=edge_in_channels,
+                hidden_channels=self.hidden_dim,
+                out_channels=self.edge_dim,
+                num_layers=self.num_encoder_layers,
+                act=self.act,
+                norm=self.norm,
+                dropout=self.dropout
+            ).to(x.device)  # Move edge_encoder to the same device as x
 
         # Encode node and edge features
         x = self.node_encoder(x)  # Encode node features
@@ -185,6 +210,10 @@ if __name__ == "__main__":
         global_dim=8,
         hidden_dim=64,
         num_layers=3,
+        num_encoder_layers=2,
+        num_edge_mlp_layers=2,
+        num_node_mlp_layers=2,
+        num_global_mlp_layers=2,
         shift_predictor_hidden_dim=[128, 64, 32],  # Custom architecture for shift predictor
         shift_predictor_layers=4,
         embedding_type="combined",  # Use both node and global features

@@ -15,15 +15,27 @@ def get_args():
                         choices=['MPGNN', 'SCHNET'], default='MPGNN',
                         help='Type of model to use')
     parser.add_argument('--node_dim', type=int, default=32,
-                        help='Dimension of node features')
+                        help='Encoding Dimension of node features')
     parser.add_argument('--edge_dim', type=int, default=16,
-                        help='Dimension of edge features')
+                        help='Encoding Dimension of edge features')
     parser.add_argument('--global_dim', type=int, default=8,
-                        help='Dimension of global features')
+                        help='Encoding  Dimension of global features')
     parser.add_argument('--hidden_dim', type=int, default=64,
                         help='Hidden dimension for message passing')
     parser.add_argument('--num_layers', type=int, default=3,
                         help='Number of message passing layers')
+    parser.add_argument('--num_encoder_layers', type=int, default=2,
+                        help='Number of layers for feature encoding')
+
+
+    # MPGNN Architecture arguments
+    parser.add_argument('--num_edge_mlp_layers', type=int, default=2,
+                        help='Number of edge MLP layers for MPGNN message passing')
+    parser.add_argument('--num_node_mlp_layers', type=int, default=2,
+                        help='Number of node MLP layers for MPGNN message passing')
+    parser.add_argument('--num_global_mlp_layers', type=int, default=2,
+                        help='Number of global MLP layers for MPGNN message passing')
+
 
     # Shift predictor architecture
     parser.add_argument('--shift_predictor_hidden_dim', type=int, nargs='+', default=[128, 64, 32],

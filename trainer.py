@@ -80,9 +80,34 @@ class Trainer:
 
         return total_loss / len(val_loader)
 
-    def train(self, train_loader, val_loader):
+    def train(self, train_loader, val_loader, cv_split=None):
+        """
+        Trains the model and logs detailed training results, including all supplied arguments.
+
+        Args:
+            train_loader (DataLoader): DataLoader for the training set.
+            val_loader (DataLoader): DataLoader for the validation set.
+            cv_split (int, optional): Cross-validation split index (default: None).
+        """
         best_val_loss = float('inf')
-        #self.model.to(self.device)
+
+        # Log all arguments supplied to the training function
+        model_params = {
+            'cv_split': cv_split  # Cross-validation split index
+        }
+
+        # Add all arguments from self.args to the model_params dictionary
+        for arg in vars(self.args):
+            model_params[arg] = getattr(self.args, arg)
+
+        # Log model parameters to CSV
+        with open(self.csv_file, mode='a', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(['Model Parameters'])
+            writer.writerow(['Parameter', 'Value'])
+            for key, value in model_params.items():
+                writer.writerow([key, value])
+            writer.writerow([])  # Add a blank row for separation
 
         for epoch in tqdm(range(self.args.epochs), desc="Training", unit="epoch"):
             # Training
@@ -99,7 +124,7 @@ class Trainer:
             self.writer.add_scalar('Validation Loss', val_loss, epoch)
             self.writer.add_scalar('Learning Rate', self.optimizer.param_groups[0]['lr'], epoch)
 
-            # Log metrics to CSV (optional)
+            # Log metrics to CSV
             with open(self.csv_file, mode='a', newline='') as file:
                 writer = csv.writer(file)
                 writer.writerow([epoch, train_loss, val_loss, self.optimizer.param_groups[0]['lr']])
@@ -112,7 +137,10 @@ class Trainer:
                     'model_state_dict': self.model.state_dict(),
                     'optimizer_state_dict': self.optimizer.state_dict(),
                     'val_loss': val_loss,
+                    'model_params': model_params,  # Save all model parameters with the best model
+                    'cv_split': cv_split  # Save cross-validation split index
                 }, os.path.join(self.args.save_dir, 'best_model.pt'))
 
         # Close TensorBoard writer
         self.writer.close()
+

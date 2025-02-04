@@ -12,6 +12,10 @@ def model_params():
         'global_dim': 32,  # Set global_dim to match node_dim
         'hidden_dim': 64,
         'num_layers': 3,
+        'num_encoder_layers': 2,
+        'num_edge_mlp_layers': 2,
+        'num_node_mlp_layers': 2,
+        'num_global_mlp_layers': 2,
         'shift_predictor_hidden_dim': [128, 64, 32],
         'shift_predictor_layers': 4,
         'embedding_type': "combined",
@@ -21,24 +25,23 @@ def model_params():
     }
 
 
-
 @pytest.fixture
 def sample_data():
-    # Create two graphs
+    # Create two graphs with varying input dimensions
     num_nodes = [5, 3]
     num_edges = [8, 4]
 
     # First graph
-    x1 = torch.randn(num_nodes[0], 32)
+    x1 = torch.randn(num_nodes[0], 7)  # Node features with 7 dimensions
     edge_index1 = torch.randint(0, num_nodes[0], (2, num_edges[0]))
-    edge_attr1 = torch.randn(num_edges[0], 16)
+    edge_attr1 = torch.randn(num_edges[0], 4)  # Edge features with 4 dimensions
 
     # Second graph
-    x2 = torch.randn(num_nodes[1], 32)
+    x2 = torch.randn(num_nodes[1], 7)  # Node features with 7 dimensions
     edge_index2 = torch.randint(0, num_nodes[1], (2, num_edges[1]))
-    edge_attr2 = torch.randn(num_edges[1], 16)
+    edge_attr2 = torch.randn(num_edges[1], 4)  # Edge features with 4 dimensions
 
-    # Create PyG Data objects (no need to pass u anymore)
+    # Create PyG Data objects
     data1 = Data(x=x1, edge_index=edge_index1, edge_attr=edge_attr1)
     data2 = Data(x=x2, edge_index=edge_index2, edge_attr=edge_attr2)
 
@@ -67,7 +70,6 @@ def test_model_forward(model_params, sample_data):
     assert node_emb.shape == (8, model_params['node_dim'])
     assert edge_emb.shape == (12, model_params['edge_dim'])  # Total edges: 8 + 4 = 12
     assert global_emb.shape == (2, model_params['node_dim'])  # Global embeddings now have size (num_graphs, node_dim)
-
 
 
 @pytest.mark.parametrize("embedding_type", ["node", "global", "combined"])
@@ -144,9 +146,9 @@ def test_batch_none_handling(model_params):
     # Single graph data (no batch)
     num_nodes = 5
     num_edges = 8
-    x = torch.randn(num_nodes, model_params['node_dim'])
+    x = torch.randn(num_nodes, 7)  # Node features with 7 dimensions
     edge_index = torch.randint(0, num_nodes, (2, num_edges))
-    edge_attr = torch.randn(num_edges, model_params['edge_dim'])
+    edge_attr = torch.randn(num_edges, 4)  # Edge features with 4 dimensions
 
     # Should work without providing batch
     with torch.no_grad():  # Disable gradient computation for inference
@@ -164,9 +166,9 @@ def test_batch_none_handling_layer_norm(model_params):
     # Single graph data (no batch)
     num_nodes = 5
     num_edges = 8
-    x = torch.randn(num_nodes, model_params['node_dim'])
+    x = torch.randn(num_nodes, 7)  # Node features with 7 dimensions
     edge_index = torch.randint(0, num_nodes, (2, num_edges))
-    edge_attr = torch.randn(num_edges, model_params['edge_dim'])
+    edge_attr = torch.randn(num_edges, 4)  # Edge features with 4 dimensions
 
     # Should work without providing batch
     shifts, _ = model(x, edge_index, edge_attr)
