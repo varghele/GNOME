@@ -12,7 +12,7 @@ def get_args():
 
     # Model selection and architecture
     parser.add_argument('--model_type', type=str, required=False,
-                        choices=['MPGNN', 'SCHNET', 'GAT'], default='GAT',
+                        choices=['MPGNN', 'SCHNET', 'GAT'], default='SCHNET',
                         help='Type of model to use')
     parser.add_argument('--node_dim', type=int, default=32,
                         help='Encoding Dimension of node features')
@@ -35,6 +35,18 @@ def get_args():
                         help='Number of node MLP layers for MPGNN message passing')
     parser.add_argument('--num_global_mlp_layers', type=int, default=2,
                         help='Number of global MLP layers for MPGNN message passing')
+
+    # SchNet Architecture arguments
+    parser.add_argument('--num_filters', type=int, default=128,
+                        help='Number of filters in the interaction blocks (default: 128)')
+    parser.add_argument('--num_interactions', type=int, default=6,
+                        help='Number of interaction blocks in the model (default: 6)')
+    parser.add_argument('--num_gaussians', type=int, default=50,
+                        help='Number of Gaussians for distance expansion (default: 50)')
+    parser.add_argument('--cutoff', type=float, default=10.0,
+                        help='Cutoff distance for interactions (default: 10.0)')
+    parser.add_argument('--max_num_neighbors', type=int, default=32,
+                        help='Maximum number of neighbors for each node (default: 32)')
 
     # GAT Architecture arguments
     parser.add_argument('--heads', type=int, default=2,
