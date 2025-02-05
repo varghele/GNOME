@@ -72,6 +72,7 @@ This will print:
     The first molecule in the dataset (as a PyTorch Geometric Data object).
 
 ### Step 5: Run training
+Take a look at args.py what arguments you can pass to the pipeline. Be aware however, that not all models share all arguments, as some are model specific.
 ```bash
 python main.py [**kwargs]
 ```
