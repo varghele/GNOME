@@ -78,6 +78,7 @@ python main.py [**kwargs]
 ```
 
 ### Step 6: Monitor with Tensorboard
+During training, model performance is logged for tracking and hyperparameter tuning. Logging is available via tensorboard. In the main directory, run:
 ```bash
 python tensorboard --logdir checkpoints
 ```
