@@ -70,3 +70,13 @@ This will print:
 
     The number of molecules in the dataset.
     The first molecule in the dataset (as a PyTorch Geometric Data object).
+
+### Step 5: Run training
+```bash
+python main.py [**kwargs]
+```
+
+### Step 6: Monitor with Tensorboard
+```bash
+python tensorboard --logdir checkpoints
+```
