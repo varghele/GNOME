@@ -63,7 +63,7 @@ def get_args():
                         help='Type of embeddings to use for shift prediction')
 
     # Training parameters
-    parser.add_argument('--epochs', type=int, default=5,
+    parser.add_argument('--epochs', type=int, default=10,
                         help='Number of training epochs')
     parser.add_argument('--batch_size', type=int, default=128,
                         help='Batch size for training')
@@ -73,7 +73,7 @@ def get_args():
                         help='Weight decay for optimizer')
     parser.add_argument('--dropout', type=float, default=0.1,
                         help='Dropout rate')
-    parser.add_argument('--num_splits', type=int, default=2,
+    parser.add_argument('--num_splits', type=int, default=3,
                         help='Number of splits for k-fold cross-validation')
 
     # Model components
@@ -87,7 +87,7 @@ def get_args():
     # Paths and logistics
     parser.add_argument('--device', type=str, default='cuda',
                         help='Device to use')
-    parser.add_argument('--num_workers', type=int, default=8,
+    parser.add_argument('--num_workers', type=int, default=24,
                         help='Number of workers for data loading')
     parser.add_argument('--save_dir', type=str, default='checkpoints',
                         help='Directory to save/load model checkpoints')
@@ -101,9 +101,9 @@ def get_args():
                         help='Random seed for reproducibility')
 
     # Debug mode
-    parser.add_argument('--debug', action='store_true', default='True',
+    parser.add_argument('--debug', action='store_true', default='False',
                         help='Enable debug mode (load a fraction of the dataset)')
-    parser.add_argument('--debug_fraction', type=float, default=0.1,
+    parser.add_argument('--debug_fraction', type=float, default=0.01,
                         help='Fraction of the dataset to load in debug mode')
 
     return parser.parse_args()

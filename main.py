@@ -8,31 +8,38 @@ from trainer import Trainer
 from dataset import get_dataset
 
 
-def k_fold_split(dataset, k, seed=42):
+def k_fold_split(dataset, k, test_size=0.1, seed=42):
     """
-    Manually splits the dataset into k folds for cross-validation.
+    Manually splits the dataset into k folds for cross-validation, including a test set.
 
     Args:
         dataset (list): The full dataset to split.
         k (int): Number of folds.
+        test_size (float): Proportion of the dataset to include in the test split (default: 0.2).
         seed (int): Random seed for reproducibility.
 
     Returns:
-        list: A list of k tuples, where each tuple contains (train_indices, val_indices).
+        list: A list of k tuples, where each tuple contains (train_indices, val_indices, test_indices).
     """
     random.seed(seed)
     indices = list(range(len(dataset)))
     random.shuffle(indices)  # Shuffle the indices to ensure randomness
 
-    fold_size = len(dataset) // k
+    # Split the dataset into train+val and test sets
+    test_split = int(len(dataset) * test_size)
+    test_indices = indices[:test_split]
+    train_val_indices = indices[test_split:]
+
+    # Now split the train_val_indices into k folds
+    fold_size = len(train_val_indices) // k
     folds = []
 
     for i in range(k):
         val_start = i * fold_size
-        val_end = (i + 1) * fold_size if i < k - 1 else len(dataset)
-        val_indices = indices[val_start:val_end]
-        train_indices = indices[:val_start] + indices[val_end:]
-        folds.append((train_indices, val_indices))
+        val_end = (i + 1) * fold_size if i < k - 1 else len(train_val_indices)
+        val_indices = train_val_indices[val_start:val_end]
+        train_indices = train_val_indices[:val_start] + train_val_indices[val_end:]
+        folds.append((train_indices, val_indices, test_indices))
 
     return folds
 
@@ -56,22 +63,24 @@ def main():
 
     if args.mode == 'train':
         # Get the dataset (full or debug)
-        if args.debug:
+        if args.debug == "True":
             print(f"Debug: {args.debug}")
             dataset = get_dataset(args.data_dir, split='debug', debug_fraction=args.debug_fraction)
         else:
+            print(f"Full")
             dataset = get_dataset(args.data_dir, split='full')
 
         # Perform k-fold cross-validation
         folds = k_fold_split(dataset, args.num_splits, seed=args.seed)
 
         # Loop through each fold
-        for fold, (train_idx, val_idx) in enumerate(folds):
+        for fold, (train_idx, val_idx, test_idx) in enumerate(folds):
             print(f"Fold {fold + 1}/{args.num_splits}")
 
             # Split the dataset into train and validation sets
             train_dataset = torch.utils.data.Subset(dataset, train_idx)
             val_dataset = torch.utils.data.Subset(dataset, val_idx)
+            test_dataset = torch.utils.data.Subset(dataset, test_idx)
 
             # Create data loaders
             train_loader = DataLoader(
@@ -80,7 +89,8 @@ def main():
                 shuffle=True,
                 num_workers=args.num_workers,
                 pin_memory=True,  # Enable pinned memory for faster GPU transfer
-                prefetch_factor = 2  # Prefetch batches asynchronously
+                prefetch_factor = 2,  # Prefetch batches asynchronously
+                persistent_workers=True # Keeps workers alive to speed up loading
             )
 
             val_loader = DataLoader(
@@ -90,11 +100,18 @@ def main():
                 num_workers=args.num_workers
             )
 
+            test_loader = DataLoader(
+                test_dataset,
+                batch_size=args.batch_size,
+                shuffle=False,
+                num_workers=args.num_workers
+            )
+
             # Initialize trainer
             trainer = Trainer(model, args)
 
             # Train model on this fold
-            trainer.train(train_loader, val_loader)
+            trainer.train(train_loader, val_loader, test_loader, fold)
 
     else:  # Inference mode
         if not args.model_path:
