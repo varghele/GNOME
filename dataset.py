@@ -4,7 +4,7 @@ import requests
 import argparse
 from torch_geometric.data import Dataset, Data
 from rdkit import Chem
-from utils.dlutils import create_molecule_data
+from utils.dlutils import create_molecule_data, is_organometallic
 from tqdm import tqdm
 import h5py  # For HDF5 storage
 
@@ -64,9 +64,12 @@ class MoleculeDataset(Dataset):
 
         # Create an HDF5 file to store the processed data
         h5_file_path = os.path.join(self.processed_dir, self.processed_file_names[0])
-        with h5py.File(h5_file_path, 'w') as h5_file:
+        organometallic_h5_file_path = os.path.join(self.processed_dir, "organometallic_" + self.processed_file_names[0])
+        with h5py.File(h5_file_path, 'w') as h5_file, h5py.File(organometallic_h5_file_path,
+                                                                'w') as organometallic_h5_file:
             # Counter for valid molecules
             valid_molecule_count = 0
+            organometallic_molecule_count = 0
 
             for idx, mol in enumerate(tqdm(supplier, desc="Processing molecules", unit="mol")):
                 # Skip invalid molecules
@@ -92,17 +95,24 @@ class MoleculeDataset(Dataset):
                     print(f"Skipping molecule at index {idx} because create_molecule_data returned None.")
                     continue
 
+                # Check if the molecule is organometallic
+                if is_organometallic(mol):
+                    # Save organometallic molecule in the organometallic HDF5 file
+                    group = organometallic_h5_file.create_group(f'molecule_{organometallic_molecule_count}')
+                    organometallic_molecule_count += 1
+                else:
+                    # Save normal molecule in the normal HDF5 file
+                    group = h5_file.create_group(f'molecule_{valid_molecule_count}')
+                    valid_molecule_count += 1
+
                 # Save each molecule as a group in the HDF5 file
-                group = h5_file.create_group(f'molecule_{valid_molecule_count}')
                 group.create_dataset('x', data=data.x.numpy())
                 group.create_dataset('edge_index', data=data.edge_index.numpy())
                 group.create_dataset('edge_attr', data=data.edge_attr.numpy())
                 group.create_dataset('y', data=data.y.numpy())
 
-                # Increment the valid molecule counter
-                valid_molecule_count += 1
-
         print(f"Processed data saved to: {h5_file_path}")
+        print(f"Organometallic processed data saved to: {organometallic_h5_file_path}")
 
     def len(self):
         # Get the number of molecules in the HDF5 file

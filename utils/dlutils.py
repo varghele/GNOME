@@ -99,6 +99,20 @@ def extract_nmr_shifts(mol):
         nmr_shifts[atom_idx] = float(shift)
     return nmr_shifts
 
+# Function to check if molecule is organometallic
+def is_organometallic(mol):
+    """
+    Check if a molecule is organometallic by looking for metal atoms.
+    """
+    # List of atomic numbers for common metals
+    metals = set(range(3, 5)) | set(range(11, 14)) | set(range(19, 33)) | set(range(37, 52)) | set(range(55, 85)) | set(
+        range(87, 104))
+
+    for atom in mol.GetAtoms():
+        if atom.GetAtomicNum() in metals:
+            return True
+    return False
+
 
 def create_molecule_data(mol):
     if mol is None:

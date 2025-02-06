@@ -27,12 +27,6 @@ class Trainer:
             patience=5
         )
 
-        # Initialize CSV logging (optional)
-        #self.csv_file = os.path.join(args.save_dir, 'training_logs.csv')
-        #with open(self.csv_file, mode='w', newline='') as file:
-        #    writer_csv = csv.writer(file)
-        #    writer_csv.writerow(['epoch', 'train_loss', 'val_loss', 'learning_rate'])
-
     def train_epoch(self, train_loader):
         self.model.train()
         total_loss = 0
@@ -151,17 +145,6 @@ class Trainer:
             elif isinstance(param_value, str):
                 writer.add_text(f'hyperparameters/{param_name}', str(param_value), 0)
 
-        # Log configuration as text in TensorBoard
-        #writer.add_text('Configuration', str(model_params)) #TODO: cleanup
-
-        # Log to CSV with enhanced information
-        #with open(self.csv_file, mode='a', newline='') as file:
-        #    writer_csv = csv.writer(file)
-        #    writer_csv.writerow(['=== Run Configuration ==='])
-        #    for key, value in model_params.items():
-        #        writer_csv.writerow([key, value])
-        #    writer_csv.writerow([])
-
         # Log model parameters to CSV
         with open(csv_file, mode='a', newline='') as file:
             writer_csv = csv.writer(file)
@@ -189,11 +172,6 @@ class Trainer:
             writer.add_scalar('Validation Loss', val_loss, epoch)
             writer.add_scalar('Test Loss', test_loss, epoch)
             writer.add_scalar('Learning Rate', self.optimizer.param_groups[0]['lr'], epoch)
-
-            # Log metrics to CSV
-            #with open(self.csv_file, mode='a', newline='') as file:
-            #    writer_csv = csv.writer(file)
-            #    writer_csv.writerow([epoch, train_loss, val_loss, self.optimizer.param_groups[0]['lr']])
 
             # Log metrics to CSV
             with open(csv_file, mode='a', newline='') as file:
