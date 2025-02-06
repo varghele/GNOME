@@ -32,6 +32,7 @@ conda install conda-forge::rdkit
 conda install conda-forge::tensorboard
 conda install anaconda::h5py 
 ```
+If you have trouble installing `torch-scatter`, don't worry, there is a backup solution in place for the `MPGNN` model.
 ### Step 1: Clone the Repository
 First, clone the repository to your local machine:
 ```bash

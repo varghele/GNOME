@@ -1,6 +1,9 @@
 import torch
 from torch_geometric.nn import MetaLayer, MLP
-from torch_scatter import scatter_mean
+try:
+    from torch_scatter import scatter_mean
+except ImportError:
+    from utils.alternative_torch_scatter import scatter_mean
 from typing import Optional, Union, Callable, Literal, List
 
 
