@@ -12,7 +12,7 @@ def get_args():
 
     # Model selection and architecture
     parser.add_argument('--model_type', type=str, required=False,
-                        choices=['MPGNN', 'SCHNET', 'GAT'], default='SCHNET',
+                        choices=['MPGNN', 'SCHNET', 'GAT'], default='GAT',
                         help='Type of model to use')
     parser.add_argument('--node_dim', type=int, default=32,
                         help='Encoding Dimension of node features')
@@ -29,11 +29,11 @@ def get_args():
 
 
     # MPGNN Architecture arguments
-    parser.add_argument('--num_edge_mlp_layers', type=int, default=2,
+    parser.add_argument('--num_edge_mlp_layers', type=int, default=3,
                         help='Number of edge MLP layers for MPGNN message passing')
-    parser.add_argument('--num_node_mlp_layers', type=int, default=2,
+    parser.add_argument('--num_node_mlp_layers', type=int, default=3,
                         help='Number of node MLP layers for MPGNN message passing')
-    parser.add_argument('--num_global_mlp_layers', type=int, default=2,
+    parser.add_argument('--num_global_mlp_layers', type=int, default=3,
                         help='Number of global MLP layers for MPGNN message passing')
 
     # SchNet Architecture arguments
@@ -49,7 +49,7 @@ def get_args():
                         help='Maximum number of neighbors for each node (default: 32)')
 
     # GAT Architecture arguments
-    parser.add_argument('--heads', type=int, default=2,
+    parser.add_argument('--heads', type=int, default=8,
                         help='Number attention heads for the GAT model')
 
 
@@ -63,7 +63,7 @@ def get_args():
                         help='Type of embeddings to use for shift prediction')
 
     # Training parameters
-    parser.add_argument('--epochs', type=int, default=10,
+    parser.add_argument('--epochs', type=int, default=300,
                         help='Number of training epochs')
     parser.add_argument('--batch_size', type=int, default=128,
                         help='Batch size for training')
@@ -71,23 +71,23 @@ def get_args():
                         help='Learning rate')
     parser.add_argument('--weight_decay', type=float, default=1e-5,
                         help='Weight decay for optimizer')
-    parser.add_argument('--dropout', type=float, default=0.1,
+    parser.add_argument('--dropout', type=float, default=0.05,
                         help='Dropout rate')
     parser.add_argument('--num_splits', type=int, default=3,
                         help='Number of splits for k-fold cross-validation')
 
     # Model components
-    parser.add_argument('--activation', type=str, default='relu',
+    parser.add_argument('--activation', type=str, default='leaky_relu',
                         choices=['relu', 'leaky_relu', 'elu', 'tanh'],
                         help='Activation function')
-    parser.add_argument('--normalization', type=str, default='batch_norm',
+    parser.add_argument('--normalization', type=str, default='layer_norm',
                         choices=['batch_norm', 'layer_norm', 'none'],
                         help='Normalization layer type')
 
     # Paths and logistics
     parser.add_argument('--device', type=str, default='cuda',
                         help='Device to use')
-    parser.add_argument('--num_workers', type=int, default=24,
+    parser.add_argument('--num_workers', type=int, default=20,
                         help='Number of workers for data loading')
     parser.add_argument('--save_dir', type=str, default='checkpoints',
                         help='Directory to save/load model checkpoints')

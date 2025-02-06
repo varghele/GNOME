@@ -2,7 +2,10 @@
 import torch
 import torch.nn as nn
 from torch_geometric.nn import MessagePassing, radius_graph
-from torch_scatter import scatter
+try:
+    from torch_scatter import scatter_mean
+except ImportError:
+    from utils.alternative_torch_scatter import scatter_mean
 from torch_geometric.nn import MLP
 from typing import Optional, Union, Callable, List
 
