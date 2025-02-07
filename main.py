@@ -11,21 +11,34 @@ from dataset import get_dataset
 def k_fold_split(dataset, k, test_size=0.1, seed=42):
     """
     Manually splits the dataset into k folds for cross-validation, including a test set.
+    If k is 1, performs a standard 80-15-5 split (train, validation, test).
 
     Args:
         dataset (list): The full dataset to split.
-        k (int): Number of folds.
-        test_size (float): Proportion of the dataset to include in the test split (default: 0.2).
+        k (int): Number of folds. If k is 1, performs a standard 80-15-5 split.
+        test_size (float): Proportion of the dataset to include in the test split (default: 0.1).
         seed (int): Random seed for reproducibility.
 
     Returns:
         list: A list of k tuples, where each tuple contains (train_indices, val_indices, test_indices).
+              If k is 1, returns a single tuple with the 80-15-5 split.
     """
     random.seed(seed)
     indices = list(range(len(dataset)))
     random.shuffle(indices)  # Shuffle the indices to ensure randomness
 
-    # Split the dataset into train+val and test sets
+    # If k is 1, perform a standard 80-15-5 split
+    if k == 1:
+        train_size = int(len(dataset) * 0.8)
+        val_size = int(len(dataset) * 0.15)
+
+        train_indices = indices[:train_size]
+        val_indices = indices[train_size:train_size + val_size]
+        test_indices = indices[train_size + val_size:]
+
+        return [(train_indices, val_indices, test_indices)]
+
+    # Otherwise, perform k-fold cross-validation with a test set
     test_split = int(len(dataset) * test_size)
     test_indices = indices[:test_split]
     train_val_indices = indices[test_split:]
