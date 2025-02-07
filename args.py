@@ -12,13 +12,13 @@ def get_args():
 
     # Model selection and architecture
     parser.add_argument('--model_type', type=str, required=False,
-                        choices=['MPGNN', 'SCHNET', 'GAT'], default='GAT',
+                        choices=['MPGNN', 'SCHNET', 'GAT'], default='MPGNN',
                         help='Type of model to use')
     parser.add_argument('--node_dim', type=int, default=32,
                         help='Encoding Dimension of node features')
     parser.add_argument('--edge_dim', type=int, default=16,
                         help='Encoding Dimension of edge features')
-    parser.add_argument('--global_dim', type=int, default=8,
+    parser.add_argument('--global_dim', type=int, default=32,
                         help='Encoding  Dimension of global features')
     parser.add_argument('--hidden_dim', type=int, default=64,
                         help='Hidden dimension for message passing')
