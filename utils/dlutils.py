@@ -58,13 +58,28 @@ def get_bond_length(bond, mol):
 def get_bond_features(bond, mol):
     # Bond type (single, double, triple, aromatic)
     bond_type = bond.GetBondType()
-    bond_type_map = {
-        rdchem.BondType.SINGLE: 0,
-        rdchem.BondType.DOUBLE: 1,
-        rdchem.BondType.TRIPLE: 2,
-        rdchem.BondType.AROMATIC: 3,
-    }
-    bond_type_idx = bond_type_map.get(bond_type, 0)
+
+    # Original bond type encoding (commented out)
+    # bond_type_map = {
+    #     rdchem.BondType.SINGLE: 0,
+    #     rdchem.BondType.DOUBLE: 1,
+    #     rdchem.BondType.TRIPLE: 2,
+    #     rdchem.BondType.AROMATIC: 3,
+    # }
+    # bond_type_idx = bond_type_map.get(bond_type, 0)
+
+    # One-hot encoding for bond type
+    bond_type_one_hot = torch.zeros(5)  # 4 bond types: single, double, triple, aromatic, ghost
+    if bond_type == Chem.rdchem.BondType.SINGLE:
+        bond_type_one_hot[0] = 1
+    elif bond_type == Chem.rdchem.BondType.DOUBLE:
+        bond_type_one_hot[1] = 1
+    elif bond_type == Chem.rdchem.BondType.TRIPLE:
+        bond_type_one_hot[2] = 1
+    elif bond_type == Chem.rdchem.BondType.AROMATIC:
+        bond_type_one_hot[3] = 1
+    else:
+        bond_type_one_hot[4] = 1
 
     # Conjugation (whether the bond is conjugated)
     is_conjugated = int(bond.GetIsConjugated())
@@ -76,11 +91,27 @@ def get_bond_features(bond, mol):
     bond_length = get_bond_length(bond, mol)
 
     # Combine features into a single vector
-    bond_features = torch.tensor([
-        bond_type_idx, is_conjugated, is_in_ring, bond_length
-    ], dtype=torch.float)
+    bond_features = torch.cat([
+        bond_type_one_hot,  # One-hot encoded bond type
+        torch.tensor([is_conjugated, is_in_ring, bond_length], dtype=torch.float)
+    ])
 
     return bond_features
+
+
+# Create ghost bond features (one-hot encoded bond type for ghost bonds)
+def create_ghost_bond_features(distance):
+    # One-hot encoding for bond types: [single, double, triple, aromatic, ghost]
+    ghost_bond_one_hot = torch.tensor([0, 0, 0, 0, 1], dtype=torch.float)  # Ghost bond is the 5th type
+
+    # Combine one-hot encoded bond type with other features (conjugation, ring membership, distance)
+    ghost_bond_features = torch.cat([
+        ghost_bond_one_hot,  # One-hot encoded bond type (ghost bond)
+        torch.tensor([0, 0, distance], dtype=torch.float)  # Other features (conjugation, ring membership, distance)
+    ])
+
+    return ghost_bond_features
+
 
 
 # Function to extract 13C NMR shifts from the molecule properties
@@ -161,7 +192,8 @@ def create_molecule_data(mol):
                 distance = np.linalg.norm(pos_i - pos_j)
 
                 # Create ghost bond features (bond type 4 for ghost bonds)
-                ghost_bond_features = torch.tensor([4, 0, 0, distance], dtype=torch.float)
+                #ghost_bond_features = torch.tensor([4, 0, 0, distance], dtype=torch.float) # TODO: make dynamic
+                ghost_bond_features = create_ghost_bond_features(distance)
 
                 # Add ghost bond (both directions for undirected graph)
                 edge_indices.append([i, j])
@@ -176,7 +208,7 @@ def create_molecule_data(mol):
     if len(edge_attrs) == 0:
         # If there are no edges, create empty tensors for edge_index and edge_attr
         edge_index = torch.empty((2, 0), dtype=torch.long)  # Empty edge connectivity matrix
-        edge_attr = torch.empty((0, 4), dtype=torch.float)  # Empty edge feature matrix
+        edge_attr = torch.empty((0, 7), dtype=torch.float)  # Empty edge feature matrix #TODO: Make dynamic
     else:
         # If there are edges, stack them into tensors
         edge_index = torch.tensor(edge_indices, dtype=torch.long).t().contiguous()  # Edge connectivity matrix

@@ -36,6 +36,18 @@ experiments = [
     ]
 ]
 
+experiments = [
+    [
+        "--model_type", "MPGNN",
+        "--epochs", "300",
+        "--activation", "leaky_relu",
+        "--normalization", "layer_norm",
+        "--num_edge_mlp_layers", "3",  # MPGNN-specific argument
+        "--num_node_mlp_layers", "3",   # MPGNN-specific argument
+        "--num_global_mlp_layers", "3" # MPGNN-specific argument
+    ]
+]
+
 
 # Function to run a single experiment
 def run_experiment(args):

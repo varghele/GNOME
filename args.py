@@ -14,15 +14,15 @@ def get_args():
     parser.add_argument('--model_type', type=str, required=False,
                         choices=['MPGNN', 'SCHNET', 'GAT'], default='MPGNN',
                         help='Type of model to use')
-    parser.add_argument('--node_dim', type=int, default=32,
+    parser.add_argument('--node_dim', type=int, default=64,
                         help='Encoding Dimension of node features')
-    parser.add_argument('--edge_dim', type=int, default=16,
+    parser.add_argument('--edge_dim', type=int, default=32,
                         help='Encoding Dimension of edge features')
-    parser.add_argument('--global_dim', type=int, default=32,
+    parser.add_argument('--global_dim', type=int, default=64,
                         help='Encoding  Dimension of global features')
     parser.add_argument('--hidden_dim', type=int, default=64,
                         help='Hidden dimension for message passing')
-    parser.add_argument('--num_layers', type=int, default=5,
+    parser.add_argument('--num_layers', type=int, default=3,
                         help='Number of message passing layers')
     parser.add_argument('--num_encoder_layers', type=int, default=2,
                         help='Number of layers for feature encoding')
