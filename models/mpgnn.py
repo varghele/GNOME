@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 from torch_geometric.nn import MetaLayer, MLP
 try:
     from torch_scatter import scatter_mean
@@ -6,6 +7,11 @@ except ImportError:
     from utils.alternative_torch_scatter import scatter_mean
 from typing import Optional, Union, Callable, Literal, List
 
+
+def init_weights(m):
+    if type(m) == torch.nn.Linear:
+        torch.nn.init.xavier_uniform_(m.weight)
+        m.bias.data.fill_(0.01)
 
 class EdgeModel(torch.nn.Module):
     def __init__(self, node_dim, edge_dim, hidden_dim, num_edge_mlp_layers, act, norm, dropout):
@@ -163,7 +169,7 @@ class MPGNN(torch.nn.Module):
                 act=self.act,
                 norm=self.norm,
                 dropout=self.dropout
-            ).to(x.device)  # Move node_encoder to the same device as x
+            ).apply(init_weights).to(x.device)  # Move node_encoder to the same device as x
 
         # Initialize edge encoder if not already initialized
         if self.edge_encoder is None:
@@ -176,7 +182,8 @@ class MPGNN(torch.nn.Module):
                 act=self.act,
                 norm=self.norm,
                 dropout=self.dropout
-            ).to(x.device)  # Move edge_encoder to the same device as x
+            ).apply(init_weights).to(x.device)  # Move edge_encoder to the same device as x
+
 
         # Encode node and edge features
         x = self.node_encoder(x)  # Encode node features

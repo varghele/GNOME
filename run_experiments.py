@@ -38,13 +38,15 @@ experiments = [
 
 experiments = [
     [
-        "--model_type", "MPGNN",
+        "--model_type", "SCHNET",
         "--epochs", "300",
         "--activation", "leaky_relu",
         "--normalization", "layer_norm",
-        "--num_edge_mlp_layers", "3",  # MPGNN-specific argument
-        "--num_node_mlp_layers", "3",   # MPGNN-specific argument
-        "--num_global_mlp_layers", "3" # MPGNN-specific argument
+        "--num_interactions", "6",  # SchNet-specific argument
+        "--num_filters", "128",  # SchNet-specific argument
+        "--num_gaussians", "50",  # SchNet-specific argument
+        "--cutoff", "10.0",  # SchNet-specific argument
+        "--max_num_neighbors", "32"  # SchNet-specific argument
     ]
 ]
 

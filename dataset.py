@@ -95,6 +95,11 @@ class MoleculeDataset(Dataset):
                     print(f"Skipping molecule at index {idx} because create_molecule_data returned None.")
                     continue
 
+                # Check if all values in data.y are NaN (i.e., the molecule has no NMR shifts)
+                if torch.isnan(data.y).all():
+                    print(f"Skipping molecule at index {idx} because all NMR shifts are NaN.")
+                    continue
+
                 # Check if the molecule is organometallic
                 if is_organometallic(mol):
                     # Save organometallic molecule in the organometallic HDF5 file
@@ -146,6 +151,85 @@ class MoleculeDataset(Dataset):
 
             # Create a PyG Data object
             return Data(x=x, edge_index=edge_index, edge_attr=edge_attr, y=y)
+
+
+class OrganometallicDataset(Dataset):
+    def __init__(self):
+        """
+        Initialize the OrganometallicDataset class with internal properties.
+        """
+        super(OrganometallicDataset, self).__init__()
+        self._processed_dir = "data/processed/"
+        self._processed_file_name = "organometallic_processed_data.h5"
+
+        # Open the HDF5 file to get the number of molecules
+        with h5py.File(self.h5_file_path, 'r') as h5_file:
+            self.molecule_keys = list(h5_file.keys())
+
+    @property
+    def processed_dir(self) -> str:
+        """
+        Get the processed directory.
+        """
+        return self._processed_dir
+
+    @property
+    def processed_file_name(self) -> str:
+        """
+        Get the processed file name.
+        """
+        return self._processed_file_name
+
+    @property
+    def h5_file_path(self) -> str:
+        """
+        Get the full path to the HDF5 file.
+        """
+        return os.path.join(self.processed_dir, self.processed_file_name)
+
+    def len(self):
+        """
+        Returns the number of molecules in the dataset.
+        """
+        return len(self.molecule_keys)
+
+    def get(self, idx):
+        """
+        Load a molecule from the HDF5 file and convert it into a PyG Data object.
+
+        Args:
+            idx (int): Index of the molecule to retrieve.
+
+        Returns:
+            data (torch_geometric.data.Data): A PyG Data object.
+        """
+        # Load the molecule from the HDF5 file
+        with h5py.File(self.h5_file_path, 'r') as h5_file:
+            # Check if the molecule exists in the HDF5 file
+            molecule_key = f'molecule_{idx}'
+            if molecule_key not in h5_file:
+                print(f"Warning: Molecule {molecule_key} not found in the HDF5 file.")
+                return None
+
+            group = h5_file[molecule_key]
+
+            # Load the datasets
+            x = torch.tensor(group['x'][:], dtype=torch.float)  # Node features
+            edge_index = torch.tensor(group['edge_index'][:], dtype=torch.long)  # Edge indices
+            edge_attr = torch.tensor(group['edge_attr'][:], dtype=torch.float)  # Edge features
+
+            # Check if 'y' exists in the group
+            if 'y' in group:
+                y = torch.tensor(group['y'][:], dtype=torch.float)  # Target (e.g., chemical shifts)
+            else:
+                # If 'y' is missing, assign a placeholder (e.g., zeros)
+                y = torch.zeros(1, dtype=torch.float)  # Placeholder
+                print(f"Warning: 'y' is missing in group {molecule_key}. Using placeholder.")
+
+            # Create a PyG Data object
+            data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr, y=y)
+
+        return data
 
 
 def get_dataset(data_dir, split='full', debug_fraction=0.05):

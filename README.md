@@ -30,7 +30,9 @@ conda install pyg -c pyg
 pip install torch-scatter
 conda install conda-forge::rdkit
 conda install conda-forge::tensorboard
-conda install anaconda::h5py 
+conda install anaconda::h5py
+conda install anaconda::scikit-learn
+conda install conda-forge::mendeleev
 ```
 If you have trouble installing `torch-scatter`, don't worry, there is a backup solution in place for the `MPGNN` model.
 ### Step 1: Clone the Repository

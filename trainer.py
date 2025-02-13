@@ -42,12 +42,28 @@ class Trainer:
                 batch.batch
             )
 
-            # Compute loss
-            loss = torch.nn.functional.mse_loss(shifts, torch.unsqueeze(batch.y,dim=-1))
+            # Get the target values
+            targets = torch.unsqueeze(batch.y, dim=-1)
+
+            # Create a mask to ignore NaN values in the targets
+            mask = ~torch.isnan(targets)
+
+            # Apply the mask to both predictions and targets
+            shifts_masked = shifts[mask]
+            targets_masked = targets[mask]
+
+            # Compute loss only for non-NaN values
+            if len(targets_masked) > 0:  # Check if there are any non-NaN values
+                loss = torch.nn.functional.mse_loss(shifts_masked, targets_masked)
+            else:
+                loss = torch.tensor(0.0, device=self.device)  # No valid targets, set loss to 0
 
             # Backward pass
             self.optimizer.zero_grad()
             loss.backward()
+            # Gradient clipping to prevent exploding gradients
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+            # Update model parameters
             self.optimizer.step()
 
             total_loss += loss.item()
@@ -61,13 +77,31 @@ class Trainer:
 
         for batch in val_loader:
             batch = batch.to(self.device)
+
+            # Forward pass
             shifts, _ = self.model(
                 batch.x,
                 batch.edge_index,
                 batch.edge_attr,
                 batch.batch
             )
-            loss = torch.nn.functional.mse_loss(shifts, torch.unsqueeze(batch.y,dim=-1))
+
+            # Get the target values
+            targets = torch.unsqueeze(batch.y, dim=-1)
+
+            # Create a mask to ignore NaN values in the targets
+            mask = ~torch.isnan(targets)
+
+            # Apply the mask to both predictions and targets
+            shifts_masked = shifts[mask]
+            targets_masked = targets[mask]
+
+            # Compute loss only for non-NaN values
+            if len(targets_masked) > 0:  # Check if there are any non-NaN values
+                loss = torch.nn.functional.mse_loss(shifts_masked, targets_masked)
+            else:
+                loss = torch.tensor(0.0, device=self.device)  # No valid targets, set loss to 0
+
             total_loss += loss.item()
 
         return total_loss / len(val_loader)
@@ -79,18 +113,34 @@ class Trainer:
 
         for batch in test_loader:
             batch = batch.to(self.device)
+
+            # Forward pass
             shifts, _ = self.model(
                 batch.x,
                 batch.edge_index,
                 batch.edge_attr,
                 batch.batch
             )
-            loss = torch.nn.functional.mse_loss(shifts, torch.unsqueeze(batch.y, dim=-1))
+
+            # Get the target values
+            targets = torch.unsqueeze(batch.y, dim=-1)
+
+            # Create a mask to ignore NaN values in the targets
+            mask = ~torch.isnan(targets)
+
+            # Apply the mask to both predictions and targets
+            shifts_masked = shifts[mask]
+            targets_masked = targets[mask]
+
+            # Compute loss only for non-NaN values
+            if len(targets_masked) > 0:  # Check if there are any non-NaN values
+                loss = torch.nn.functional.mse_loss(shifts_masked, targets_masked)
+            else:
+                loss = torch.tensor(0.0, device=self.device)  # No valid targets, set loss to 0
+
             total_loss += loss.item()
 
         return total_loss / len(test_loader)
-
-
 
     def train(self, train_loader, val_loader, test_loader, cv_split=None):
         """
@@ -99,6 +149,7 @@ class Trainer:
         Args:
             train_loader (DataLoader): DataLoader for the training set.
             val_loader (DataLoader): DataLoader for the validation set.
+            test_loader (DataLoader): DataLoader for the test set.
             cv_split (int, optional): Cross-validation split index (default: None).
         """
         best_val_loss = float('inf')
@@ -165,7 +216,8 @@ class Trainer:
             test_loss = self.test(test_loader)
 
             # Update scheduler
-            self.scheduler.step(val_loss)
+            #self.scheduler.step(val_loss)
+            self.scheduler.step(train_loss)
 
             # Log metrics to TensorBoard
             writer.add_scalar('Train Loss', train_loss, epoch)

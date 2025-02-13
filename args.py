@@ -18,11 +18,11 @@ def get_args():
                         help='Encoding Dimension of node features')
     parser.add_argument('--edge_dim', type=int, default=32,
                         help='Encoding Dimension of edge features')
-    parser.add_argument('--global_dim', type=int, default=64,
+    parser.add_argument('--global_dim', type=int, default=32,
                         help='Encoding  Dimension of global features')
     parser.add_argument('--hidden_dim', type=int, default=64,
                         help='Hidden dimension for message passing')
-    parser.add_argument('--num_layers', type=int, default=3,
+    parser.add_argument('--num_layers', type=int, default=7,
                         help='Number of message passing layers')
     parser.add_argument('--num_encoder_layers', type=int, default=2,
                         help='Number of layers for feature encoding')
@@ -63,7 +63,7 @@ def get_args():
                         help='Type of embeddings to use for shift prediction')
 
     # Training parameters
-    parser.add_argument('--epochs', type=int, default=100,
+    parser.add_argument('--epochs', type=int, default=300,
                         help='Number of training epochs')
     parser.add_argument('--batch_size', type=int, default=128,
                         help='Batch size for training')

@@ -4,7 +4,11 @@ from torch_geometric.data import Data
 from rdkit.Chem import rdchem
 import numpy as np
 from tqdm import tqdm
+import mendeleev as me
 
+
+# Temporary dictionary to cache electronegativity values
+electronegativity_cache = {}
 
 # Function to create atom features
 def get_atom_features(atom):
@@ -23,22 +27,40 @@ def get_atom_features(atom):
     # Aromaticity
     is_aromatic = int(atom.GetIsAromatic())
 
-    # Hybridization (sp, sp2, sp3, etc.)
+    # Hybridization (one-hot encoded)
     hybridization = atom.GetHybridization()
-    hybridization_map = {
-        rdchem.HybridizationType.SP: 0,
-        rdchem.HybridizationType.SP2: 1,
-        rdchem.HybridizationType.SP3: 2,
-        rdchem.HybridizationType.SP3D: 3,
-        rdchem.HybridizationType.SP3D2: 4,
-        rdchem.HybridizationType.UNSPECIFIED: 5,
-    }
-    hybridization_idx = hybridization_map.get(hybridization, 5)
+    hybridization_types = [
+        Chem.HybridizationType.SP,    # 0
+        Chem.HybridizationType.SP2,   # 1
+        Chem.HybridizationType.SP3,   # 2
+        Chem.HybridizationType.SP3D,  # 3
+        Chem.HybridizationType.SP3D2, # 4
+        Chem.HybridizationType.UNSPECIFIED  # 5
+    ]
+    hybridization_one_hot = torch.zeros(len(hybridization_types), dtype=torch.float)
+    if hybridization in hybridization_types:
+        hybridization_one_hot[hybridization_types.index(hybridization)] = 1.0
+
+    # Additional features
+    valence_electrons = atom.GetTotalValence()
+    is_in_ring = int(atom.IsInRing())
+    chirality = int(atom.GetChiralTag() != Chem.ChiralType.CHI_UNSPECIFIED)
+    radical_electrons = atom.GetNumRadicalElectrons()
+    isotope = atom.GetIsotope()
+    vdw_radius = Chem.GetPeriodicTable().GetRvdw(atom.GetAtomicNum())
+
+    # Electronegativity (using mendeleev with caching)
+    if atomic_num not in electronegativity_cache:
+        element = me.element(atomic_num)
+        electronegativity_cache[atomic_num] = element.electronegativity(scale='pauling')  # Pauling scale
+    electronegativity = electronegativity_cache.get(atomic_num, 0.0)  # Default to 0.0 if not found
 
     # Combine features into a single vector
-    atom_features = torch.tensor([
-        atomic_num, degree, formal_charge, num_hydrogens, is_aromatic, hybridization_idx
-    ], dtype=torch.float)
+    atom_features = torch.cat([
+        torch.tensor([atomic_num, degree, formal_charge, num_hydrogens, is_aromatic], dtype=torch.float),
+        hybridization_one_hot,
+        torch.tensor([valence_electrons, is_in_ring, chirality, radical_electrons, isotope, vdw_radius, electronegativity], dtype=torch.float)
+    ])
 
     return atom_features
 
@@ -52,6 +74,17 @@ def get_bond_length(bond, mol):
     end_pos = np.array(conf.GetAtomPosition(end_atom_idx))
     bond_length = np.linalg.norm(start_pos - end_pos)
     return bond_length
+
+# Radial Basis Function (RBF) to adjust bond length
+def radial_basis_function(bond_length, centers=np.linspace(0, 2, 20), gamma=10.0):
+    """
+    Apply a radial basis function to the bond length.
+    :param bond_length: The bond length to transform.
+    :param centers: Centers of the RBF (default: 20 centers between 0 and 2 Å).
+    :param gamma: Width of the RBF (default: 10.0).
+    :return: RBF-transformed bond length as a tensor.
+    """
+    return torch.tensor(np.exp(-gamma * (bond_length - centers) ** 2), dtype=torch.float)
 
 
 # Function to create bond features
@@ -90,24 +123,32 @@ def get_bond_features(bond, mol):
     # Bond length
     bond_length = get_bond_length(bond, mol)
 
+    # Adjusted bond length using RBF
+    rbf_adjusted_bond_length = radial_basis_function(bond_length)
+
     # Combine features into a single vector
     bond_features = torch.cat([
         bond_type_one_hot,  # One-hot encoded bond type
-        torch.tensor([is_conjugated, is_in_ring, bond_length], dtype=torch.float)
+        torch.tensor([is_conjugated, is_in_ring, bond_length], dtype=torch.float),  # Conjugation, ring membership, bond length
+        rbf_adjusted_bond_length  # RBF-adjusted bond length
     ])
 
     return bond_features
 
 
-# Create ghost bond features (one-hot encoded bond type for ghost bonds)
+
 def create_ghost_bond_features(distance):
     # One-hot encoding for bond types: [single, double, triple, aromatic, ghost]
     ghost_bond_one_hot = torch.tensor([0, 0, 0, 0, 1], dtype=torch.float)  # Ghost bond is the 5th type
 
-    # Combine one-hot encoded bond type with other features (conjugation, ring membership, distance)
+    # Adjusted bond length using RBF
+    rbf_adjusted_distance = radial_basis_function(distance)
+
+    # Combine one-hot encoded bond type with other features (conjugation, ring membership, distance, RBF-adjusted distance)
     ghost_bond_features = torch.cat([
         ghost_bond_one_hot,  # One-hot encoded bond type (ghost bond)
-        torch.tensor([0, 0, distance], dtype=torch.float)  # Other features (conjugation, ring membership, distance)
+        torch.tensor([0, 0, distance], dtype=torch.float),  # Other features (conjugation, ring membership, distance)
+        rbf_adjusted_distance  # RBF-adjusted distance
     ])
 
     return ghost_bond_features
@@ -154,14 +195,15 @@ def create_molecule_data(mol):
 
     # Node features: atom features + NMR shift
     node_features = []
-    for atom in tqdm(mol.GetAtoms(), desc="Processing atoms", leave=False):  # Add tqdm for atoms
+    for atom in mol.GetAtoms():
         atom_features = get_atom_features(atom)
 
         # Get the NMR shift for the atom (if available)
-        nmr_shift = nmr_shifts.get(atom.GetIdx(), 0.0)  # Default to 0.0 if no shift is available
+        #nmr_shift = nmr_shifts.get(atom.GetIdx(), float('nan'))  # Assign NaN if no shift is available
 
         # Combine atom features and NMR shift into a single feature vector
-        node_feature = torch.cat([atom_features, torch.tensor([nmr_shift])])
+        #node_feature = torch.cat([atom_features, torch.tensor([nmr_shift])])
+        node_feature = atom_features
         node_features.append(node_feature)
 
     # Edge features: bond features
@@ -170,7 +212,7 @@ def create_molecule_data(mol):
     num_atoms = mol.GetNumAtoms()
 
     # Add real bonds
-    for bond in tqdm(mol.GetBonds(), desc="Processing bonds", leave=False):  # Add tqdm for bonds
+    for bond in mol.GetBonds():  # Add tqdm for bonds
         start_atom = bond.GetBeginAtomIdx()
         end_atom = bond.GetEndAtomIdx()
         bond_features = get_bond_features(bond, mol)
@@ -216,7 +258,8 @@ def create_molecule_data(mol):
 
     # Create the target tensor (y) from the NMR shifts
     # Here, we assume that the NMR shift for each atom is the target
-    y = torch.tensor([nmr_shifts.get(atom.GetIdx(), 0.0) for atom in mol.GetAtoms()], dtype=torch.float)
+    y = torch.tensor([nmr_shifts.get(atom.GetIdx(), float('nan')) for atom in mol.GetAtoms()], dtype=torch.float)
+
 
     # Create PyTorch Geometric Data object
     data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr, y=y)
