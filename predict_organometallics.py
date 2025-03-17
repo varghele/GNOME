@@ -5,7 +5,7 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import matplotlib.pyplot as plt
 from models import get_model
 from models.mpgnn import MPGNN
-from dataset import OrganometallicDataset
+from dataset import OrganometallicDataset, MoleculeDataset
 import ast
 
 
@@ -94,7 +94,7 @@ def load_test_dataset():
     Load the organometallic test set using the OrganometallicDataset class.
     """
     # Create the organometallic dataset
-    test_dataset = OrganometallicDataset()
+    test_dataset = MoleculeDataset(root='data') #OrganometallicDataset()
 
     # Create the DataLoader
     test_loader = DataLoader(
@@ -165,7 +165,7 @@ def visualize_predictions(all_targets, all_predictions):
 # Main Function
 def main():
     # Paths
-    model_path = "checkpoints/best_model_20250211-154945_cv0.pt"  # Replace with the path to your saved model
+    model_path = "checkpoints/best_model_20250215-122212_cv0.pt"  # Replace with the path to your saved model
     model_type = "MPGNN"  # Replace with the type of model you want to load (e.g., 'MPGNN', 'SCHNET', 'GAT')
 
     # Device (CPU or GPU)

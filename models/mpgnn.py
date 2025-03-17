@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch_geometric.nn import MetaLayer, MLP
 try:
-    from torch_scatter import scatter_mean
+    from torch_scatter import scatter_mean, scatter_add
 except ImportError:
     from utils.alternative_torch_scatter import scatter_mean
 from typing import Optional, Union, Callable, Literal, List
@@ -22,7 +22,7 @@ class EdgeModel(torch.nn.Module):
             out_channels=edge_dim,
             num_layers=num_edge_mlp_layers,
             act=act,
-            norm=norm,
+            norm="BatchNorm",#norm,
             dropout=dropout
         )
 
@@ -40,7 +40,7 @@ class NodeModel(torch.nn.Module):
             out_channels=hidden_dim,
             num_layers=num_node_mlp_layers,
             act=act,
-            norm=norm,
+            norm="BatchNorm",#norm,
             dropout=dropout
         )
         self.node_mlp_2 = MLP(
@@ -49,7 +49,7 @@ class NodeModel(torch.nn.Module):
             out_channels=node_dim,
             num_layers=num_node_mlp_layers,
             act=act,
-            norm=norm,
+            norm="BatchNorm",#norm,
             dropout=dropout
         )
 
@@ -57,7 +57,7 @@ class NodeModel(torch.nn.Module):
         row, col = edge_index
         out = torch.cat([x[row], edge_attr], dim=1)
         out = self.node_mlp_1(out)
-        out = scatter_mean(out, col, dim=0, dim_size=x.size(0))
+        out = scatter_add(out, col, dim=0, dim_size=x.size(0))
         out = torch.cat([x, out], dim=1)  # Removed u[batch]
         return self.node_mlp_2(out)
 
@@ -71,7 +71,7 @@ class GlobalModel(torch.nn.Module):
             out_channels=global_dim,
             num_layers=num_global_mlp_layers,
             act=act,
-            norm=norm,
+            norm="BatchNorm",#norm,
             dropout=dropout
         )
 
@@ -150,7 +150,7 @@ class MPGNN(torch.nn.Module):
         self.shift_predictor = MLP(
             channel_list=channel_list,
             act=act,
-            norm=norm,
+            norm=None,#norm,
             dropout=dropout
         )
 
@@ -167,7 +167,7 @@ class MPGNN(torch.nn.Module):
                 out_channels=self.node_dim,
                 num_layers=self.num_encoder_layers,
                 act=self.act,
-                norm=self.norm,
+                norm="BatchNorm",#self.norm,
                 dropout=self.dropout
             ).apply(init_weights).to(x.device)  # Move node_encoder to the same device as x
 
@@ -180,7 +180,7 @@ class MPGNN(torch.nn.Module):
                 out_channels=self.edge_dim,
                 num_layers=self.num_encoder_layers,
                 act=self.act,
-                norm=self.norm,
+                norm="BatchNorm",#self.norm,
                 dropout=self.dropout
             ).apply(init_weights).to(x.device)  # Move edge_encoder to the same device as x
 

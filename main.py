@@ -81,7 +81,7 @@ def main():
             dataset = get_dataset(args.data_dir, split='debug', debug_fraction=args.debug_fraction)
         else:
             print(f"Full")
-            dataset = get_dataset(args.data_dir, split='full')
+            dataset = get_dataset(args.data_dir, split='debug')
 
         # Perform k-fold cross-validation
         folds = k_fold_split(dataset, args.num_splits, seed=args.seed)

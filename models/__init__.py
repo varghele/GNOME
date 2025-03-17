@@ -2,6 +2,7 @@
 from .mpgnn import MPGNN
 from .schnet import SchNet  # You'll need to implement this
 from .gat import GAT
+from .gnnml3 import GNNML3
 
 def get_model(model_type, args):
     if model_type == 'MPGNN':
@@ -51,6 +52,22 @@ def get_model(model_type, args):
             num_encoder_layers=args.num_encoder_layers,
             num_global_mlp_layers=args.num_global_mlp_layers,
             heads=args.heads,
+            shift_predictor_hidden_dim=args.shift_predictor_hidden_dim,
+            shift_predictor_layers=args.shift_predictor_layers,
+            embedding_type=args.embedding_type,
+            act=args.activation,
+            norm=args.normalization,
+            dropout=args.dropout
+        )
+    elif model_type == 'GNNML3':
+        return GNNML3(
+            node_dim=args.node_dim,
+            edge_dim=args.edge_dim,
+            global_dim=args.global_dim,
+            hidden_dim=args.hidden_dim,
+            num_layers=args.num_layers,
+            num_encoder_layers=args.num_encoder_layers,
+            output_dim=args.output_dim if hasattr(args, 'output_dim') else 2,
             shift_predictor_hidden_dim=args.shift_predictor_hidden_dim,
             shift_predictor_layers=args.shift_predictor_layers,
             embedding_type=args.embedding_type,

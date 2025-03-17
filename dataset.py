@@ -300,6 +300,8 @@ def main():
     if not args.download and not args.process:
         print(f"Number of molecules in the dataset: {len(dataset)}")
         print(f"First molecule in the dataset: {dataset[0]}")
+        data_0 = dataset[0]
+        print(data_0.y)
 
 
 if __name__ == "__main__":

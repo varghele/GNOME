@@ -7,11 +7,11 @@ experiments = [
     # Experiment 1: SchNet
     [
         "--model_type", "SCHNET",
-        "--epochs", "300",
+        "--epochs", "700",
         "--activation", "leaky_relu",
-        "--normalization", "layer_norm",
+        "--normalization", "batch_norm",
         "--num_interactions", "6",  # SchNet-specific argument
-        "--num_filters", "128",     # SchNet-specific argument
+        "--num_filters", "256",     # SchNet-specific argument
         "--num_gaussians", "50",     # SchNet-specific argument
         "--cutoff", "10.0",         # SchNet-specific argument
         "--max_num_neighbors", "32" # SchNet-specific argument
@@ -19,34 +19,30 @@ experiments = [
     # Experiment 2: GAT
     [
         "--model_type", "GAT",
-        "--epochs", "300",
+        "--epochs", "700",
         "--activation", "leaky_relu",
-        "--normalization", "layer_norm",
-        "--heads", "8"  # GAT-specific argument
+        "--normalization", "batch_norm",
+        "--heads", "16"  # GAT-specific argument
     ],
     # Experiment 3: MPGNN
     [
         "--model_type", "MPGNN",
-        "--epochs", "300",
+        "--epochs", "700",
         "--activation", "leaky_relu",
         "--normalization", "layer_norm",
         "--num_edge_mlp_layers", "3",  # MPGNN-specific argument
         "--num_node_mlp_layers", "3",   # MPGNN-specific argument
         "--num_global_mlp_layers", "3" # MPGNN-specific argument
-    ]
-]
-
-experiments = [
+    ],
+# Experiment 4: MPGNN
     [
-        "--model_type", "SCHNET",
-        "--epochs", "300",
+        "--model_type", "MPGNN",
+        "--epochs", "700",
         "--activation", "leaky_relu",
-        "--normalization", "layer_norm",
-        "--num_interactions", "6",  # SchNet-specific argument
-        "--num_filters", "128",  # SchNet-specific argument
-        "--num_gaussians", "50",  # SchNet-specific argument
-        "--cutoff", "10.0",  # SchNet-specific argument
-        "--max_num_neighbors", "32"  # SchNet-specific argument
+        "--normalization", "none",
+        "--num_edge_mlp_layers", "3",  # MPGNN-specific argument
+        "--num_node_mlp_layers", "3",   # MPGNN-specific argument
+        "--num_global_mlp_layers", "3" # MPGNN-specific argument
     ]
 ]
 

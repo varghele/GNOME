@@ -223,7 +223,7 @@ def create_molecule_data(mol):
         edge_attrs.append(bond_features)
         edge_attrs.append(bond_features)
 
-    # Add ghost bonds between all pairs of atoms that are not connected by real bonds
+    """# Add ghost bonds between all pairs of atoms that are not connected by real bonds
     for i in range(num_atoms):
         for j in range(i + 1, num_atoms):
             if not mol.GetBondBetweenAtoms(i, j):
@@ -241,7 +241,7 @@ def create_molecule_data(mol):
                 edge_indices.append([i, j])
                 edge_indices.append([j, i])
                 edge_attrs.append(ghost_bond_features)
-                edge_attrs.append(ghost_bond_features)
+                edge_attrs.append(ghost_bond_features)"""
 
     # Convert lists to tensors
     x = torch.stack(node_features)  # Node feature matrix
