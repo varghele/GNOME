@@ -6,12 +6,47 @@ import numpy as np
 from tqdm import tqdm
 import mendeleev as me
 
-
-# Temporary dictionary to cache electronegativity values
+# Temporary dictionaries to cache atomic properties
 electronegativity_cache = {}
+atomic_radius_cache = {}
+electron_affinity_cache = {}
+polarizability_cache = {}
+ionization_energy_cache = {}
+covalent_radius_cache = {}
+
+
+def classify_carbon_environment(atom, mol):
+    """Classify a carbon atom into structural categories based on its environment."""
+    if atom.GetSymbol() != 'C':
+        return "non-carbon"
+
+    # Is it aromatic?
+    if atom.GetIsAromatic():
+        return "aromatic"
+
+    # Check for carbonyl/carboxyl
+    for neighbor in atom.GetNeighbors():
+        if neighbor.GetSymbol() == 'O' and mol.GetBondBetweenAtoms(atom.GetIdx(),
+                                                                   neighbor.GetIdx()).GetBondType() == Chem.rdchem.BondType.DOUBLE:
+            return "carbonyl/carboxyl"
+
+    # Check for olefinic (C=C)
+    for neighbor in atom.GetNeighbors():
+        if neighbor.GetSymbol() == 'C' and mol.GetBondBetweenAtoms(atom.GetIdx(),
+                                                                   neighbor.GetIdx()).GetBondType() == Chem.rdchem.BondType.DOUBLE:
+            return "olefinic"
+
+    # Check for alkoxy/amino
+    for neighbor in atom.GetNeighbors():
+        if neighbor.GetSymbol() in ['O', 'N']:
+            return "alkoxy/amino"
+
+    # If none of the above, it's aliphatic
+    return "aliphatic"
+
 
 # Function to create atom features
-def get_atom_features(atom):
+def get_atom_features(atom, mol=None):
     # Atomic number
     atomic_num = atom.GetAtomicNum()
 
@@ -30,11 +65,11 @@ def get_atom_features(atom):
     # Hybridization (one-hot encoded)
     hybridization = atom.GetHybridization()
     hybridization_types = [
-        Chem.HybridizationType.SP,    # 0
-        Chem.HybridizationType.SP2,   # 1
-        Chem.HybridizationType.SP3,   # 2
+        Chem.HybridizationType.SP,  # 0
+        Chem.HybridizationType.SP2,  # 1
+        Chem.HybridizationType.SP3,  # 2
         Chem.HybridizationType.SP3D,  # 3
-        Chem.HybridizationType.SP3D2, # 4
+        Chem.HybridizationType.SP3D2,  # 4
         Chem.HybridizationType.UNSPECIFIED  # 5
     ]
     hybridization_one_hot = torch.zeros(len(hybridization_types), dtype=torch.float)
@@ -46,20 +81,105 @@ def get_atom_features(atom):
     is_in_ring = int(atom.IsInRing())
     chirality = int(atom.GetChiralTag() != Chem.ChiralType.CHI_UNSPECIFIED)
     radical_electrons = atom.GetNumRadicalElectrons()
-    isotope = atom.GetIsotope()
+    isotope = atom.GetIsotope() or 0  # Handle None case
     vdw_radius = Chem.GetPeriodicTable().GetRvdw(atom.GetAtomicNum())
 
-    # Electronegativity (using mendeleev with caching)
+    # Check if we need to get properties from mendeleev
     if atomic_num not in electronegativity_cache:
-        element = me.element(atomic_num)
-        electronegativity_cache[atomic_num] = element.electronegativity(scale='pauling')  # Pauling scale
-    electronegativity = electronegativity_cache.get(atomic_num, 0.0)  # Default to 0.0 if not found
+        try:
+            # Get all properties at once to avoid multiple element lookups
+            element = me.element(atomic_num)
+
+            # Cache electronegativity (Pauling scale)
+            # Handle the case where electronegativity is a method that needs to be called
+            try:
+                en_value = element.electronegativity_pauling
+                if callable(en_value):
+                    en_value = 0.0  # Default if it's a method
+                electronegativity_cache[atomic_num] = float(en_value) if en_value is not None else 0.0
+            except (AttributeError, TypeError):
+                electronegativity_cache[atomic_num] = 0.0
+
+            # Cache additional atomic properties - ensuring all are float values
+            try:
+                atomic_radius_cache[atomic_num] = float(
+                    element.atomic_radius) if element.atomic_radius is not None else 0.0
+            except (AttributeError, TypeError):
+                atomic_radius_cache[atomic_num] = 0.0
+
+            try:
+                electron_affinity_cache[atomic_num] = float(
+                    element.electron_affinity) if element.electron_affinity is not None else 0.0
+            except (AttributeError, TypeError):
+                electron_affinity_cache[atomic_num] = 0.0
+
+            try:
+                polarizability_cache[atomic_num] = float(
+                    element.dipole_polarizability) if element.dipole_polarizability is not None else 0.0
+            except (AttributeError, TypeError):
+                polarizability_cache[atomic_num] = 0.0
+
+            try:
+                # First ionization energy
+                if hasattr(element, 'ionenergies') and element.ionenergies and 1 in element.ionenergies:
+                    ionization_energy_cache[atomic_num] = float(element.ionenergies[1])
+                else:
+                    ionization_energy_cache[atomic_num] = 0.0
+            except (AttributeError, TypeError):
+                ionization_energy_cache[atomic_num] = 0.0
+
+            try:
+                covalent_radius_cache[atomic_num] = float(
+                    element.covalent_radius) if element.covalent_radius is not None else 0.0
+            except (AttributeError, TypeError):
+                covalent_radius_cache[atomic_num] = 0.0
+        except Exception:
+            # If any error occurs, set all properties to 0.0
+            electronegativity_cache[atomic_num] = 0.0
+            atomic_radius_cache[atomic_num] = 0.0
+            electron_affinity_cache[atomic_num] = 0.0
+            polarizability_cache[atomic_num] = 0.0
+            ionization_energy_cache[atomic_num] = 0.0
+            covalent_radius_cache[atomic_num] = 0.0
+
+    # Retrieve properties from cache
+    electronegativity = electronegativity_cache.get(atomic_num, 0.0)
+    atomic_radius = atomic_radius_cache.get(atomic_num, 0.0)
+    electron_affinity = electron_affinity_cache.get(atomic_num, 0.0)
+    polarizability = polarizability_cache.get(atomic_num, 0.0)
+    ionization_energy = ionization_energy_cache.get(atomic_num, 0.0)
+    covalent_radius = covalent_radius_cache.get(atomic_num, 0.0)
+
+    # Add carbon environment classification as one-hot encoding
+    if mol is not None:  # Make sure mol is provided
+        environment = classify_carbon_environment(atom, mol)
+        environment_types = ["non-carbon", "aliphatic", "alkoxy/amino", "aromatic", "olefinic", "carbonyl/carboxyl"]
+        environment_one_hot = torch.zeros(len(environment_types), dtype=torch.float)
+        if environment in environment_types:
+            environment_one_hot[environment_types.index(environment)] = 1.0
+    else:
+        # Default to zeros if mol not provided
+        environment_one_hot = torch.zeros(6, dtype=torch.float)  # 6 environment types
 
     # Combine features into a single vector
     atom_features = torch.cat([
         torch.tensor([atomic_num, degree, formal_charge, num_hydrogens, is_aromatic], dtype=torch.float),
         hybridization_one_hot,
-        torch.tensor([valence_electrons, is_in_ring, chirality, radical_electrons, isotope, vdw_radius, electronegativity], dtype=torch.float)
+        torch.tensor([
+            valence_electrons,
+            is_in_ring,
+            chirality,
+            radical_electrons,
+            isotope,
+            vdw_radius,
+            electronegativity,
+            atomic_radius,
+            electron_affinity,
+            polarizability,
+            ionization_energy,
+            covalent_radius
+        ], dtype=torch.float),
+        environment_one_hot
     ])
 
     return atom_features
@@ -196,7 +316,7 @@ def create_molecule_data(mol):
     # Node features: atom features + NMR shift
     node_features = []
     for atom in mol.GetAtoms():
-        atom_features = get_atom_features(atom)
+        atom_features = get_atom_features(atom, mol)
 
         # Get the NMR shift for the atom (if available)
         #nmr_shift = nmr_shifts.get(atom.GetIdx(), float('nan'))  # Assign NaN if no shift is available

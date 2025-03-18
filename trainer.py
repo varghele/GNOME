@@ -23,8 +23,8 @@ class Trainer:
         self.scheduler = ReduceLROnPlateau(
             self.optimizer,
             mode='min',
-            factor=0.5,
-            patience=5
+            factor=0.9,
+            patience=10
         )
 
     def train_epoch(self, train_loader):

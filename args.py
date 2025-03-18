@@ -24,7 +24,7 @@ def get_args():
                         help='Hidden dimension for message passing')
     parser.add_argument('--num_layers', type=int, default=5,
                         help='Number of message passing layers')
-    parser.add_argument('--num_encoder_layers', type=int, default=1,
+    parser.add_argument('--num_encoder_layers', type=int, default=2,
                         help='Number of layers for feature encoding')
 
 
@@ -63,11 +63,11 @@ def get_args():
                         help='Type of embeddings to use for shift prediction')
 
     # Training parameters
-    parser.add_argument('--epochs', type=int, default=1000,
+    parser.add_argument('--epochs', type=int, default=200,
                         help='Number of training epochs')
-    parser.add_argument('--batch_size', type=int, default=128,
+    parser.add_argument('--batch_size', type=int, default=1024,
                         help='Batch size for training')
-    parser.add_argument('--lr', type=float, default=0.001,
+    parser.add_argument('--lr', type=float, default=0.01,
                         help='Learning rate')
     parser.add_argument('--weight_decay', type=float, default=1e-5,
                         help='Weight decay for optimizer')
