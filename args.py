@@ -12,7 +12,7 @@ def get_args():
 
     # Model selection and architecture
     parser.add_argument('--model_type', type=str, required=False,
-                        choices=['MPGNN', 'SCHNET', 'GAT', 'GNNML3'], default='GNNML3',
+                        choices=['MPGNN', 'SCHNET', 'GAT', 'GNNML3'], default='MPGNN',
                         help='Type of model to use')
     parser.add_argument('--node_dim', type=int, default=64,
                         help='Encoding Dimension of node features')
@@ -65,9 +65,9 @@ def get_args():
     # Training parameters
     parser.add_argument('--epochs', type=int, default=200,
                         help='Number of training epochs')
-    parser.add_argument('--batch_size', type=int, default=1024,
+    parser.add_argument('--batch_size', type=int, default=256,
                         help='Batch size for training')
-    parser.add_argument('--lr', type=float, default=0.01,
+    parser.add_argument('--lr', type=float, default=0.005,
                         help='Learning rate')
     parser.add_argument('--weight_decay', type=float, default=1e-5,
                         help='Weight decay for optimizer')
@@ -77,7 +77,7 @@ def get_args():
                         help='Number of splits for k-fold cross-validation')
 
     # Model components
-    parser.add_argument('--activation', type=str, default='leaky_relu',
+    parser.add_argument('--activation', type=str, default='elu',
                         choices=['relu', 'leaky_relu', 'elu', 'tanh'],
                         help='Activation function')
     parser.add_argument('--normalization', type=str, default='layer_norm',
