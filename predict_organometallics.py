@@ -5,6 +5,7 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import matplotlib.pyplot as plt
 from models import get_model
 from models.mpgnn import MPGNN
+from models.gnnml3 import GNNML3
 from dataset import OrganometallicDataset, MoleculeDataset
 import ast
 
@@ -62,7 +63,7 @@ def load_best_model(model_path, model_type):
         model_state_dict = checkpoint
 
     # Initialize the model (assuming MPGNN is the model class)
-    model = MPGNN(
+    model = GNNML3(
         node_dim=checkpoint["model_params"]["node_dim"],
         edge_dim=checkpoint["model_params"]["edge_dim"],
         global_dim=checkpoint["model_params"]["global_dim"],
@@ -165,8 +166,8 @@ def visualize_predictions(all_targets, all_predictions):
 # Main Function
 def main():
     # Paths
-    model_path = "checkpoints/best_model_20250215-122212_cv0.pt"  # Replace with the path to your saved model
-    model_type = "MPGNN"  # Replace with the type of model you want to load (e.g., 'MPGNN', 'SCHNET', 'GAT')
+    model_path = "checkpoints/best_model_20250317-153627_cv0.pt"  # Replace with the path to your saved model
+    model_type = "GNNML3"  # Replace with the type of model you want to load (e.g., 'MPGNN', 'SCHNET', 'GAT', GNNML3)
 
     # Device (CPU or GPU)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

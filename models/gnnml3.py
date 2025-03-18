@@ -336,7 +336,7 @@ class GNNML3(torch.nn.Module):
             dropout=dropout
         )
 
-    def forward(self, x, edge_index, edge_attr, batch, u=None):
+    def forward(self, x, edge_index, edge_attr, batch=None, u=None):
         """
         Forward pass of the GNNML3 model.
 
@@ -351,6 +351,9 @@ class GNNML3(torch.nn.Module):
             torch.Tensor: Graph-level prediction
             dict: Empty dictionary (for compatibility)
         """
+        if batch is None:
+            batch = torch.zeros(x.size(0), dtype=torch.long, device=x.device)
+
         # Initialize node encoder if not already initialized
         if self.node_encoder is None:
             node_in_channels = x.size(1)  # Infer input dimension from node features
